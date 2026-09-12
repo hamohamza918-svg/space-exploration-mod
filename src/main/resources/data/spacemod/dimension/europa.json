@@ -1,0 +1,22 @@
+{
+  "type": "spacemod:europa",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "minecraft:the_end",
+      "lakes": false,
+      "features": false,
+      "layers": [
+        {
+          "block": "minecraft:bedrock",
+          "height": 1
+        },
+        {
+          "block": "spacemod:europa_ice",
+          "height": 62
+        }
+      ],
+      "structure_overrides": []
+    }
+  }
+}

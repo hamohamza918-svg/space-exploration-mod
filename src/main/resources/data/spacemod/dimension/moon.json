@@ -1,0 +1,22 @@
+{
+  "type": "spacemod:moon",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "minecraft:the_end",
+      "lakes": false,
+      "features": false,
+      "layers": [
+        {
+          "block": "minecraft:bedrock",
+          "height": 1
+        },
+        {
+          "block": "spacemod:moon_stone",
+          "height": 62
+        }
+      ],
+      "structure_overrides": []
+    }
+  }
+}

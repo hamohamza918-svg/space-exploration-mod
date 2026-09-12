@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "spacemod",
+  "version": "${version}",
+  "name": "Space Exploration",
+  "description": "From-scratch space exploration: real planets, suits, Xylite, rockets and custom mobs.",
+  "authors": ["Ghost"],
+  "license": "ARR",
+  "icon": "assets/spacemod/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.ghost.spacemod.SpaceMod"],
+    "client": ["com.ghost.spacemod.SpaceModClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~1.21.8",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

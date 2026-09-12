@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "TTT",
+    "TOT"
+  ],
+  "key": {
+    "T": "spacemod:titanium_ingot",
+    "O": "spacemod:oxygen_tank"
+  },
+  "result": {
+    "id": "spacemod:space_helmet",
+    "count": 1
+  }
+}

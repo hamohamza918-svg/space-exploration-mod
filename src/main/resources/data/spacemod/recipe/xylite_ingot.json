@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "ingredient": "spacemod:raw_xylite",
+  "result": {
+    "id": "spacemod:xylite_ingot"
+  },
+  "experience": 0.7,
+  "cookingtime": 200
+}

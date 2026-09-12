@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "III",
+    "ICI",
+    "III"
+  ],
+  "key": {
+    "I": "minecraft:iron_block",
+    "C": "spacemod:guidance_circuit"
+  },
+  "result": {
+    "id": "spacemod:fabricator",
+    "count": 1
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "ingredient": "spacemod:raw_titanium",
+  "result": {
+    "id": "spacemod:titanium_ingot"
+  },
+  "experience": 0.7,
+  "cookingtime": 200
+}

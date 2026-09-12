@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "HXH",
+    " S "
+  ],
+  "key": {
+    "H": "spacemod:heat_shield_plate",
+    "X": "spacemod:xylite_ingot",
+    "S": "spacemod:space_chestplate"
+  },
+  "result": {
+    "id": "spacemod:thermal_chestplate",
+    "count": 1
+  }
+}

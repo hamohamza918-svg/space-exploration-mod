@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:redstone",
+    "minecraft:gold_ingot",
+    "minecraft:quartz"
+  ],
+  "result": {
+    "id": "spacemod:guidance_circuit",
+    "count": 1
+  }
+}

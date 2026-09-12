@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "TTT",
+    "T T",
+    "T T"
+  ],
+  "key": {
+    "T": "spacemod:titanium_ingot"
+  },
+  "result": {
+    "id": "spacemod:space_leggings",
+    "count": 1
+  }
+}

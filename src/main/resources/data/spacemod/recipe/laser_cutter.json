@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "XCX",
+    "XTX",
+    " T "
+  ],
+  "key": {
+    "X": "spacemod:xylite_ingot",
+    "C": "spacemod:guidance_circuit",
+    "T": "spacemod:titanium_ingot"
+  },
+  "result": {
+    "id": "spacemod:laser_cutter",
+    "count": 1
+  }
+}
