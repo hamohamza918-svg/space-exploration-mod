@@ -1,5 +1,6 @@
 package com.ghost.spacemod;
 
+import com.ghost.spacemod.weapon.WeaponItem;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
@@ -25,6 +26,13 @@ public final class ModItems {
     public static Item ROCKET_FUEL;
     public static Item LAUNCH_PAD_CORE;
     public static Item LASER_CUTTER;
+    public static Item XYLITE_BLADE;
+    public static Item ARC_CARBINE;
+    public static Item CRYO_LANCE;
+    public static Item RESONANCE_HAMMER;
+    public static Item HELIOS_GLAIVE;
+    public static Item BORER_DRILL;
+    public static Item CORROSION_SPRAYER;
     public static Item SPACE_HELMET;
     public static Item SPACE_CHESTPLATE;
     public static Item SPACE_LEGGINGS;
@@ -50,6 +58,16 @@ public final class ModItems {
         return register(name, new Item.Settings());
     }
 
+    /** Register a WeaponItem (right-click ability, sneak = secondary, melee on-hit). */
+    public static Item registerWeapon(String name, String weaponId) {
+        Identifier id = Identifier.of(SpaceMod.MOD_ID, name);
+        RegistryKey<Item> key = RegistryKey.of(RegistryKeys.ITEM, id);
+        Item item = new WeaponItem(new Item.Settings().maxCount(1).registryKey(key), weaponId);
+        Registry.register(Registries.ITEM, key, item);
+        ITEMS.add(item);
+        return item;
+    }
+
     public static void register() {
         RAW_XYLITE = basic("raw_xylite");
         XYLITE_INGOT = basic("xylite_ingot");
@@ -60,7 +78,14 @@ public final class ModItems {
         HEAT_SHIELD_PLATE = basic("heat_shield_plate");
         ROCKET_FUEL = basic("rocket_fuel");
         LAUNCH_PAD_CORE = basic("launch_pad_core");
-        LASER_CUTTER = register("laser_cutter", new Item.Settings().maxCount(1));
+        LASER_CUTTER = registerWeapon("laser_cutter", "laser_cutter");
+        XYLITE_BLADE = registerWeapon("xylite_blade", "xylite_blade");
+        ARC_CARBINE = registerWeapon("arc_carbine", "arc_carbine");
+        CRYO_LANCE = registerWeapon("cryo_lance", "cryo_lance");
+        RESONANCE_HAMMER = registerWeapon("resonance_hammer", "resonance_hammer");
+        HELIOS_GLAIVE = registerWeapon("helios_glaive", "helios_glaive");
+        BORER_DRILL = registerWeapon("borer_drill", "borer_drill");
+        CORROSION_SPRAYER = registerWeapon("corrosion_sprayer", "corrosion_sprayer");
         SPACE_HELMET = register("space_helmet", new Item.Settings().maxCount(1));
         SPACE_CHESTPLATE = register("space_chestplate", new Item.Settings().maxCount(1));
         SPACE_LEGGINGS = register("space_leggings", new Item.Settings().maxCount(1));

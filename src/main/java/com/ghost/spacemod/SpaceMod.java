@@ -1,6 +1,11 @@
 package com.ghost.spacemod;
 
+import com.ghost.spacemod.net.UltimatePayload;
+import com.ghost.spacemod.weapon.ServerScheduler;
+import com.ghost.spacemod.weapon.Ultimates;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +26,15 @@ public class SpaceMod implements ModInitializer {
         ModItemGroups.register();
         SpaceEnvironment.register();
         ModCommands.register();
+        ServerScheduler.init();
+
+        // Ultimate keybind networking (client sends, server executes)
+        PayloadTypeRegistry.playC2S().register(UltimatePayload.ID, UltimatePayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(UltimatePayload.ID, (payload, context) -> {
+            var player = context.player();
+            player.getServer().execute(() -> Ultimates.fire(player));
+        });
+
         LOGGER.info("[Space Exploration] initialized");
     }
 }
