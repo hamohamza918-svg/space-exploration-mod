@@ -10,7 +10,13 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtDouble;
+import net.minecraft.nbt.NbtFloat;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.registry.Registries;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleTypes;
@@ -896,6 +902,7 @@ public final class WeaponAbilities {
     private static final class AZState {
         final java.util.List<BlockPos> spikes = new ArrayList<>();
         final Map<BlockPos, BlockState> originals = new HashMap<>();
+        final java.util.List<Entity> displays = new ArrayList<>();
         final java.util.Set<Integer> frozen = new java.util.HashSet<>();
         boolean resolved = false;
         ServerWorld world;
@@ -1012,12 +1019,12 @@ public final class WeaponAbilities {
         int[] ringRadii = {4, 7, 10, 12};
         for (int ri = 0; ri < ringRadii.length; ri++) {
             final int rr = ringRadii[ri];
-            final int baseH = 4 + ri * 2; // 4,6,8,10 — outer edge = a frozen crown
+            final int fri = ri;
             ServerScheduler.runLater(22 + ri * 6, () -> {
                 if (st.resolved) return;
                 sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.3f, 0.6f + rr * 0.02f);
                 sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 0.6f);
-                for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 6) { // 12 spires/ring w/ gaps
+                for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 4) { // 8 clusters/ring w/ gaps
                     int x = (int) Math.round(cx + Math.cos(ang) * rr);
                     int z = (int) Math.round(cz + Math.sin(ang) * rr);
                     if (!wallClear(w, cx, cy, cz, x, z)) {
@@ -1027,8 +1034,7 @@ public final class WeaponAbilities {
                     if (sy == Integer.MIN_VALUE) {
                         continue;
                     }
-                    int h = baseH + ((x + z) % 3); // slight variation
-                    iceSpire(w, st, x, sy, z, h);
+                    crystalCluster(w, st, x, sy, z, 2 + fri); // thin sharp shard cluster
                 }
                 for (Entity e : living(w, p, around(center, rr + 1.5))) {
                     if (e instanceof LivingEntity le && spikeHit.add(le.getId())) {
@@ -1084,6 +1090,15 @@ public final class WeaponAbilities {
                 sound(w, v, SoundEvents.BLOCK_GLASS_BREAK, 0.5f, 1.2f);
             });
         }
+        // shatter the crystal shards (display entities) into bursts, then remove
+        for (Entity d : st.displays) {
+            if (d.isAlive()) {
+                particle(w, ParticleTypes.ITEM_SNOWBALL, d.getPos(), 8, 0.25, 0.25);
+                particle(w, dust(C_CRYO, 1.4f), d.getPos(), 5, 0.2, 0.05);
+                d.discard();
+            }
+        }
+        st.displays.clear();
         // shatter frozen enemies
         java.util.Set<Integer> hit = new java.util.HashSet<>();
         for (Entity e : living(w, p, around(center, st.radius))) {
@@ -1110,6 +1125,12 @@ public final class WeaponAbilities {
                     w.setBlockState(pos, old);
                 }
             });
+            for (Entity d : st.displays) { // safety: remove any shard that survived
+                if (d.isAlive()) {
+                    d.discard();
+                }
+            }
+            st.displays.clear();
             ABSOLUTE_ZERO.remove(u, st);
         });
     }
@@ -1153,6 +1174,65 @@ public final class WeaponAbilities {
         st.originals.putIfAbsent(pos, old);
         w.setBlockState(pos, block.getDefaultState());
         st.spikes.add(pos);
+    }
+
+    /** A cluster of thin, sharp, leaning ice-crystal shards (display entities) + a small icy root. */
+    private static void crystalCluster(ServerWorld w, AZState st, int x, int sy, int z, int size) {
+        Vec3d base = new Vec3d(x + 0.5, sy + 1.0, z + 0.5);
+        azSpike(w, st, new BlockPos(x, sy + 1, z), Blocks.PACKED_ICE); // icy root mound
+        int shards = 3 + size; // size 2..4 -> 5..7 shards
+        for (int i = 0; i < shards; i++) {
+            double dir = i * 2.3999632; // golden-angle spread around the base
+            double lean = 0.12 + 0.6 * ((i % 4) / 3.0);
+            double len = 0.9 + size * 0.45 + 0.4 * (i % 3);
+            double thick = 0.13 + 0.05 * (i % 2);
+            double off = 0.15 + 0.22 * (i % 3);
+            Block b = i % 3 == 0 ? Blocks.BLUE_ICE : (i % 3 == 1 ? Blocks.PACKED_ICE : Blocks.ICE);
+            spawnShard(w, st, base.add(Math.cos(dir) * off, 0, Math.sin(dir) * off), dir, lean, len, thick, b);
+        }
+        spawnShard(w, st, base, 0, 0, 1.4 + size * 0.6, 0.2, Blocks.ICE); // tall central spike
+        particle(w, ParticleTypes.ITEM_SNOWBALL, base, 18, 0.35, 0.2);
+        particle(w, ParticleTypes.END_ROD, base.add(0, len(size), 0), 6, 0.2, 0.02);
+    }
+
+    private static double len(int size) {
+        return 1.0 + size * 0.5;
+    }
+
+    /** Spawn one thin ice shard as a BlockDisplay entity, leaning by (dir, lean). */
+    private static void spawnShard(ServerWorld w, AZState st, Vec3d base, double dir, double lean,
+                                   double length, double thick, Block block) {
+        float ax = (float) (-Math.sin(dir)), az = (float) Math.cos(dir);
+        org.joml.Quaternionf q = new org.joml.Quaternionf().rotateAxis((float) lean, ax, 0f, az);
+        NbtCompound nbt = new NbtCompound();
+        nbt.putString("id", "minecraft:block_display");
+        NbtList pos = new NbtList();
+        pos.add(NbtDouble.of(base.x));
+        pos.add(NbtDouble.of(base.y));
+        pos.add(NbtDouble.of(base.z));
+        nbt.put("Pos", pos);
+        NbtCompound bs = new NbtCompound();
+        bs.putString("Name", Registries.BLOCK.getId(block).toString());
+        nbt.put("block_state", bs);
+        NbtCompound tf = new NbtCompound();
+        tf.put("translation", floats((float) (-thick / 2), 0f, (float) (-thick / 2)));
+        tf.put("scale", floats((float) thick, (float) length, (float) thick));
+        tf.put("left_rotation", floats(q.x, q.y, q.z, q.w));
+        tf.put("right_rotation", floats(0f, 0f, 0f, 1f));
+        nbt.put("transformation", tf);
+        Entity e = EntityType.loadEntityWithPassengers(nbt, w, SpawnReason.COMMAND, x -> x);
+        if (e != null) {
+            w.spawnEntity(e);
+            st.displays.add(e);
+        }
+    }
+
+    private static NbtList floats(float... vals) {
+        NbtList l = new NbtList();
+        for (float v : vals) {
+            l.add(NbtFloat.of(v));
+        }
+        return l;
     }
 
     /** A jagged, leaning, pointed ice crystal: wide plus-base → tapering trunk → sharp ice tip. */
