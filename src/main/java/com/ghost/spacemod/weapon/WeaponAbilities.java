@@ -952,8 +952,12 @@ public final class WeaponAbilities {
             if (st.resolved) return;
             sound(w, center, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 1.4f, 1.2f);
             sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.5f, 0.5f);
-            particle(w, ParticleTypes.EXPLOSION_EMITTER, center, 2, 0.4, 0.0);
-            particle(w, ParticleTypes.FLASH, center.add(0, 1, 0), 2, 0, 0);
+            // frost shockburst instead of a vanilla explosion
+            particle(w, ParticleTypes.SNOWFLAKE, center.add(0, 0.6, 0), 120, 1.2, 0.35);
+            particle(w, ParticleTypes.ITEM_SNOWBALL, center.add(0, 0.6, 0), 60, 0.8, 0.5);
+            particle(w, dust(C_CRYO, 2.2f), center.add(0, 0.6, 0), 60, 1.0, 0.1);
+            particle(w, ParticleTypes.END_ROD, center.add(0, 0.8, 0), 20, 0.6, 0.15);
+            particle(w, ParticleTypes.FLASH, center.add(0, 1, 0), 1, 0, 0);
         });
 
         // --- freeze wave: expanding frost front, follows ground, stops at walls (0.6–1.5s) ---
@@ -1011,16 +1015,14 @@ public final class WeaponAbilities {
                     if (sy == Integer.MIN_VALUE) {
                         continue;
                     }
-                    int h = height + ((x + z) % 3); // slight variation
-                    for (int y = 1; y <= h; y++) {
-                        Block b = y > h - 2 ? Blocks.BLUE_ICE : Blocks.PACKED_ICE;
-                        BlockPos sp = new BlockPos(x, sy + y, z);
-                        azPlace(w, st, sp, b);
-                        st.spikes.add(sp);
-                    }
+                    // Spikes are rendered client-side as glowing crystal geometry (CryoCastEffects);
+                    // here we just throw frost off the base so the eruption reads on the ground too.
+                    float h = height + ((x + z) % 3);
                     Vec3d baseV = new Vec3d(x + 0.5, sy + 1, z + 0.5);
-                    particle(w, ParticleTypes.ITEM_SNOWBALL, baseV, 14, 0.4, 0.15);
-                    particle(w, dust(C_CRYO, 1.6f), baseV.add(0, h * 0.5, 0), 8, 0.3, 0.02);
+                    particle(w, ParticleTypes.ITEM_SNOWBALL, baseV, 18, 0.35, 0.2);
+                    particle(w, ParticleTypes.SNOWFLAKE, baseV, 12, 0.3, 0.05);
+                    particle(w, dust(C_CRYO, 1.7f), baseV.add(0, h * 0.4, 0), 10, 0.25, 0.02);
+                    particle(w, ParticleTypes.END_ROD, baseV.add(0, h * 0.5, 0), 3, 0.15, 0.02);
                 }
                 for (Entity e : living(w, p, around(center, rr + 1.5))) {
                     if (e instanceof LivingEntity le && spikeHit.add(le.getId())) {
@@ -1085,7 +1087,10 @@ public final class WeaponAbilities {
         int totalDelay = 4 + spikes.size() / per;
         ServerScheduler.runLater(totalDelay + 2, () -> {
             sound(w, center, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 1.5f, 0.5f);
-            particle(w, ParticleTypes.EXPLOSION_EMITTER, center.add(0, 0.5, 0), 2, 0.5, 0.0);
+            sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.6f, 0.6f);
+            particle(w, ParticleTypes.ITEM_SNOWBALL, center.add(0, 0.8, 0), 160, 2.0, 0.6);
+            particle(w, ParticleTypes.SNOWFLAKE, center.add(0, 0.8, 0), 120, 1.6, 0.3);
+            particle(w, dust(C_CRYO, 2.4f), center.add(0, 0.8, 0), 80, 1.4, 0.1);
         });
         ServerScheduler.runLater(totalDelay + 40, () -> {
             st.originals.forEach((pos, old) -> {
