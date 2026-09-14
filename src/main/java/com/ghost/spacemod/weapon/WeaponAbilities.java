@@ -1074,7 +1074,8 @@ public final class WeaponAbilities {
             final BlockPos sp = spikes.get(i);
             ServerScheduler.runLater(1 + i / per, () -> {
                 BlockState old = st.originals.remove(sp);
-                if (w.getBlockState(sp).isOf(Blocks.PACKED_ICE) || w.getBlockState(sp).isOf(Blocks.BLUE_ICE)) {
+                BlockState cur = w.getBlockState(sp);
+                if (cur.isOf(Blocks.PACKED_ICE) || cur.isOf(Blocks.BLUE_ICE) || cur.isOf(Blocks.ICE)) {
                     w.setBlockState(sp, old != null ? old : Blocks.AIR.getDefaultState());
                 }
                 Vec3d v = new Vec3d(sp.getX() + 0.5, sp.getY() + 0.5, sp.getZ() + 0.5);
@@ -1154,21 +1155,31 @@ public final class WeaponAbilities {
         st.spikes.add(pos);
     }
 
-    /** A tapering blue-ice spire with a wider foot on taller ones + a lighter tip. */
+    /** A tapering ice spire: dense blue-ice base → packed-ice mid → glassy translucent ice tip. */
     private static void iceSpire(ServerWorld w, AZState st, int x, int sy, int z, int height) {
-        if (height >= 6) {
+        if (height >= 5) { // wider foot for tall spires
             for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
                 azSpike(w, st, new BlockPos(x + d[0], sy + 1, z + d[1]), Blocks.BLUE_ICE);
+                if (height >= 8) {
+                    azSpike(w, st, new BlockPos(x + d[0], sy + 2, z + d[1]), Blocks.PACKED_ICE);
+                }
             }
         }
         for (int y = 1; y <= height; y++) {
-            Block b = y >= height - 1 ? Blocks.PACKED_ICE : Blocks.BLUE_ICE;
+            Block b;
+            if (y <= height * 0.4) {
+                b = Blocks.BLUE_ICE;      // dense glowing base
+            } else if (y >= height - 2) {
+                b = Blocks.ICE;           // glassy translucent tip
+            } else {
+                b = Blocks.PACKED_ICE;    // frosted mid
+            }
             azSpike(w, st, new BlockPos(x, sy + y, z), b);
         }
         Vec3d tip = new Vec3d(x + 0.5, sy + height, z + 0.5);
-        particle(w, ParticleTypes.END_ROD, tip, 6, 0.15, 0.02);
-        particle(w, dust(C_CRYO, 1.6f), tip, 8, 0.25, 0.0);
-        particle(w, ParticleTypes.ITEM_SNOWBALL, new Vec3d(x + 0.5, sy + 1, z + 0.5), 16, 0.35, 0.2);
+        particle(w, ParticleTypes.END_ROD, tip, 8, 0.15, 0.02);
+        particle(w, dust(C_CRYO, 1.7f), tip, 10, 0.25, 0.0);
+        particle(w, ParticleTypes.ITEM_SNOWBALL, new Vec3d(x + 0.5, sy + 1, z + 0.5), 18, 0.35, 0.2);
     }
 
     /** Encase a frozen enemy in a translucent ice shell (walls around it, not on it). */
@@ -1220,7 +1231,8 @@ public final class WeaponAbilities {
         for (int y = aroundY + 4; y >= aroundY - 6; y--) {
             BlockPos bp = new BlockPos(x, y, z);
             BlockState bs = w.getBlockState(bp);
-            if ((bs.isSolidBlock(w, bp) || bs.getBlock() == Blocks.WATER) && w.getBlockState(bp.up()).isAir()) {
+            // surface = a solid block (or water) whose top is open OR only blocked by grass/plants/snow
+            if ((bs.isSolidBlock(w, bp) || bs.getBlock() == Blocks.WATER) && w.getBlockState(bp.up()).isReplaceable()) {
                 return y;
             }
         }
