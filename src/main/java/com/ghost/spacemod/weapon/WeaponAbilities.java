@@ -1014,38 +1014,37 @@ public final class WeaponAbilities {
             }
         });
 
-        // --- eruption: real blue-ice spires burst in outward rings, taller toward the edge ---
+        // --- eruption: a CROWN of big crystal clusters around the circle's border, sweeping around ---
         java.util.Set<Integer> spikeHit = new java.util.HashSet<>();
-        int[] ringRadii = {4, 7, 10, 12};
-        for (int ri = 0; ri < ringRadii.length; ri++) {
-            final int rr = ringRadii[ri];
-            final int fri = ri;
-            ServerScheduler.runLater(22 + ri * 6, () -> {
+        final int borderR = (int) Math.round(st.radius); // ~12 = the circle rim
+        final int clusters = 14;
+        for (int c = 0; c < clusters; c++) {
+            final int ci = c;
+            ServerScheduler.runLater(22 + c, () -> { // sweep the crown around the border
                 if (st.resolved) return;
-                sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.3f, 0.6f + rr * 0.02f);
-                sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 0.6f);
-                for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 4) { // 8 clusters/ring w/ gaps
-                    int x = (int) Math.round(cx + Math.cos(ang) * rr);
-                    int z = (int) Math.round(cz + Math.sin(ang) * rr);
-                    if (!wallClear(w, cx, cy, cz, x, z)) {
-                        continue;
-                    }
-                    int sy = surfaceY(w, x, z, cy);
-                    if (sy == Integer.MIN_VALUE) {
-                        continue;
-                    }
-                    crystalCluster(w, st, x, sy, z, 2 + fri); // thin sharp shard cluster
-                }
-                for (Entity e : living(w, p, around(center, rr + 1.5))) {
-                    if (e instanceof LivingEntity le && spikeHit.add(le.getId())) {
-                        hurtCapped(w, p, le, 8f);
-                        setFrozen(w, le, 140);
-                        st.frozen.add(le.getId());
-                        iceShell(w, st, le); // encase frozen enemies
-                    }
-                }
+                double ang = Math.PI * 2 * ci / clusters;
+                int x = (int) Math.round(cx + Math.cos(ang) * borderR);
+                int z = (int) Math.round(cz + Math.sin(ang) * borderR);
+                if (!wallClear(w, cx, cy, cz, x, z)) return;
+                int sy = surfaceY(w, x, z, cy);
+                if (sy == Integer.MIN_VALUE) return;
+                sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.2f, 0.7f);
+                sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 0.9f, 0.6f);
+                crystalCluster(w, st, x, sy, z, 5); // big
             });
         }
+        // damage + freeze everyone caught, once, as the crown erupts
+        ServerScheduler.runLater(26, () -> {
+            if (st.resolved) return;
+            for (Entity e : living(w, p, around(center, borderR + 2))) {
+                if (e instanceof LivingEntity le && spikeHit.add(le.getId())) {
+                    hurtCapped(w, p, le, 8f);
+                    setFrozen(w, le, 140);
+                    st.frozen.add(le.getId());
+                    iceShell(w, st, le);
+                }
+            }
+        });
 
         // --- frozen battlefield: low mist, falling snow overhead + creaks until shatter ---
         ServerScheduler.runTimer(50, 8, 22, () -> {
@@ -1179,24 +1178,23 @@ public final class WeaponAbilities {
     /** A cluster of thin, sharp, leaning ice-crystal shards (display entities) + a small icy root. */
     private static void crystalCluster(ServerWorld w, AZState st, int x, int sy, int z, int size) {
         Vec3d base = new Vec3d(x + 0.5, sy + 1.0, z + 0.5);
-        azSpike(w, st, new BlockPos(x, sy + 1, z), Blocks.PACKED_ICE); // icy root mound
-        int shards = 3 + size; // size 2..4 -> 5..7 shards
+        // small icy base mound so the big crystals look grounded
+        azSpike(w, st, new BlockPos(x, sy + 1, z), Blocks.PACKED_ICE);
+        azSpike(w, st, new BlockPos(x + 1, sy + 1, z), Blocks.BLUE_ICE);
+        azSpike(w, st, new BlockPos(x, sy + 1, z + 1), Blocks.BLUE_ICE);
+        int shards = 5 + size; // big clusters
         for (int i = 0; i < shards; i++) {
             double dir = i * 2.3999632; // golden-angle spread around the base
-            double lean = 0.12 + 0.6 * ((i % 4) / 3.0);
-            double len = 0.9 + size * 0.45 + 0.4 * (i % 3);
-            double thick = 0.13 + 0.05 * (i % 2);
-            double off = 0.15 + 0.22 * (i % 3);
+            double lean = 0.1 + 0.5 * ((i % 4) / 3.0);
+            double length = 3.0 + size * 0.9 + 0.9 * (i % 3);   // ~4.5 – 9 blocks
+            double thick = 0.22 + 0.08 * (i % 2);
+            double off = 0.2 + 0.35 * (i % 3);
             Block b = i % 3 == 0 ? Blocks.BLUE_ICE : (i % 3 == 1 ? Blocks.PACKED_ICE : Blocks.ICE);
-            spawnShard(w, st, base.add(Math.cos(dir) * off, 0, Math.sin(dir) * off), dir, lean, len, thick, b);
+            spawnShard(w, st, base.add(Math.cos(dir) * off, 0, Math.sin(dir) * off), dir, lean, length, thick, b);
         }
-        spawnShard(w, st, base, 0, 0, 1.4 + size * 0.6, 0.2, Blocks.ICE); // tall central spike
-        particle(w, ParticleTypes.ITEM_SNOWBALL, base, 18, 0.35, 0.2);
-        particle(w, ParticleTypes.END_ROD, base.add(0, len(size), 0), 6, 0.2, 0.02);
-    }
-
-    private static double len(int size) {
-        return 1.0 + size * 0.5;
+        spawnShard(w, st, base, 0, 0, 5.0 + size * 1.0, 0.32, Blocks.ICE); // towering central spike
+        particle(w, ParticleTypes.ITEM_SNOWBALL, base, 22, 0.4, 0.25);
+        particle(w, ParticleTypes.END_ROD, base.add(0, 3 + size * 0.8, 0), 8, 0.25, 0.02);
     }
 
     /** Spawn one thin ice shard as a BlockDisplay entity, leaning by (dir, lean). */
@@ -1214,6 +1212,12 @@ public final class WeaponAbilities {
         NbtCompound bs = new NbtCompound();
         bs.putString("Name", Registries.BLOCK.getId(block).toString());
         nbt.put("block_state", bs);
+        // full-bright so the crystals glow instead of rendering dark/black in shade
+        NbtCompound bright = new NbtCompound();
+        bright.putInt("block", 15);
+        bright.putInt("sky", 15);
+        nbt.put("brightness", bright);
+        nbt.putInt("glow_color_override", 0x8be6ff);
         NbtCompound tf = new NbtCompound();
         tf.put("translation", floats((float) (-thick / 2), 0f, (float) (-thick / 2)));
         tf.put("scale", floats((float) thick, (float) length, (float) thick));
