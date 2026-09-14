@@ -936,14 +936,23 @@ public final class WeaponAbilities {
             public void run() {
                 if (st.resolved) return;
                 t++;
-                // Rune disc is rendered locally from one synchronized cast event.
-                for (int i = 0; i < 12; i++) {
-                    double a = Math.PI * 2 * i / 12 + t;
-                    Vec3d o = center.add(Math.cos(a) * (2.5 - t * 0.2), 0.4 + t * 0.15, Math.sin(a) * (2.5 - t * 0.2));
+                sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 0.5f + t * 0.08f); // rising resonance
+                // frost + shards gather inward toward the lance
+                for (int i = 0; i < 16; i++) {
+                    double a = Math.PI * 2 * i / 16 + t * 0.6;
+                    double gather = 6.0 - t * 0.8;
+                    Vec3d o = center.add(Math.cos(a) * gather, 0.3 + t * 0.25, Math.sin(a) * gather);
                     particle(w, ParticleTypes.SNOWFLAKE, o, 2, 0.05, 0.0);
-                    particle(w, dust(C_CRYO, 1.4f), o, 1, 0.0, 0.0);
+                    particle(w, dust(C_CRYO, 1.5f), o, 1, 0.0, 0.0);
+                    particle(w, ParticleTypes.ITEM_SNOWBALL, o, 1, 0.0, 0.03);
                 }
-                particle(w, dust(0xffffff, 1.2f), p.getPos().add(0, 1, 0), 6, 0.4, 0.02);
+                particle(w, dust(0xffffff, 1.3f), p.getPos().add(0, 1, 0), 8, 0.4, 0.02);
+                if (t == 6) { // reach telegraph: flash the full danger ring
+                    for (int i = 0; i < 64; i++) {
+                        double a = Math.PI * 2 * i / 64;
+                        particle(w, dust(C_CRYO, 1.6f), center.add(Math.cos(a) * st.radius, 0.2, Math.sin(a) * st.radius), 1, 0.0, 0.0);
+                    }
+                }
             }
         });
 
@@ -958,6 +967,8 @@ public final class WeaponAbilities {
             particle(w, dust(C_CRYO, 2.2f), center.add(0, 0.6, 0), 60, 1.0, 0.1);
             particle(w, ParticleTypes.END_ROD, center.add(0, 0.8, 0), 20, 0.6, 0.15);
             particle(w, ParticleTypes.FLASH, center.add(0, 1, 0), 1, 0, 0);
+            lightPillar(w, center);                 // vertical frost-light column
+            shockRing(w, center, st.radius);        // expanding wave front
         });
 
         // --- freeze wave: expanding frost front, follows ground, stops at walls (0.6–1.5s) ---
@@ -996,16 +1007,17 @@ public final class WeaponAbilities {
             }
         });
 
-        // --- eruption: ice spikes burst in outward rings, small → towering (1–2.2s) ---
+        // --- eruption: real blue-ice spires burst in outward rings, taller toward the edge ---
         java.util.Set<Integer> spikeHit = new java.util.HashSet<>();
         int[] ringRadii = {4, 7, 10, 12};
         for (int ri = 0; ri < ringRadii.length; ri++) {
             final int rr = ringRadii[ri];
-            final int height = 2 + ri * 2; // outer rings taller (up to ~8)
+            final int baseH = 4 + ri * 2; // 4,6,8,10 — outer edge = a frozen crown
             ServerScheduler.runLater(22 + ri * 6, () -> {
                 if (st.resolved) return;
-                sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.2f, 0.7f + rr * 0.02f);
-                for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 9) { // ~18 spikes/ring w/ gaps
+                sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.3f, 0.6f + rr * 0.02f);
+                sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 0.6f);
+                for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 6) { // 12 spires/ring w/ gaps
                     int x = (int) Math.round(cx + Math.cos(ang) * rr);
                     int z = (int) Math.round(cz + Math.sin(ang) * rr);
                     if (!wallClear(w, cx, cy, cz, x, z)) {
@@ -1015,32 +1027,30 @@ public final class WeaponAbilities {
                     if (sy == Integer.MIN_VALUE) {
                         continue;
                     }
-                    // Spikes are rendered client-side as glowing crystal geometry (CryoCastEffects);
-                    // here we just throw frost off the base so the eruption reads on the ground too.
-                    float h = height + ((x + z) % 3);
-                    Vec3d baseV = new Vec3d(x + 0.5, sy + 1, z + 0.5);
-                    particle(w, ParticleTypes.ITEM_SNOWBALL, baseV, 18, 0.35, 0.2);
-                    particle(w, ParticleTypes.SNOWFLAKE, baseV, 12, 0.3, 0.05);
-                    particle(w, dust(C_CRYO, 1.7f), baseV.add(0, h * 0.4, 0), 10, 0.25, 0.02);
-                    particle(w, ParticleTypes.END_ROD, baseV.add(0, h * 0.5, 0), 3, 0.15, 0.02);
+                    int h = baseH + ((x + z) % 3); // slight variation
+                    iceSpire(w, st, x, sy, z, h);
                 }
                 for (Entity e : living(w, p, around(center, rr + 1.5))) {
                     if (e instanceof LivingEntity le && spikeHit.add(le.getId())) {
                         hurtCapped(w, p, le, 8f);
-                        setFrozen(w, le, 120);
+                        setFrozen(w, le, 140);
                         st.frozen.add(le.getId());
+                        iceShell(w, st, le); // encase frozen enemies
                     }
                 }
             });
         }
 
-        // --- frozen battlefield: mist + creaks until shatter, auto-resolve after 10s ---
-        ServerScheduler.runTimer(50, 15, 12, () -> {
+        // --- frozen battlefield: low mist, falling snow overhead + creaks until shatter ---
+        ServerScheduler.runTimer(50, 8, 22, () -> {
             if (st.resolved) {
                 return;
             }
-            particle(w, ParticleTypes.SNOWFLAKE, center.add(0, 0.5, 0), 30, st.radius * 0.5, 0.01);
-            sound(w, center, SoundEvents.BLOCK_GLASS_STEP, 0.6f, 0.6f);
+            particle(w, ParticleTypes.SNOWFLAKE, center.add(0, 0.4, 0), 24, st.radius * 0.5, 0.01);           // low mist
+            particle(w, ParticleTypes.SNOWFLAKE, center.add(0, 6, 0), 30, st.radius * 0.6, 0.0);              // falling snow
+            particle(w, dust(0xdff4ff, 1.2f), center.add(0, 0.3, 0), 16, st.radius * 0.45, 0.0);
+            sound(w, center, SoundEvents.BLOCK_GLASS_STEP, 0.5f, 0.55f);
+            sound(w, center, SoundEvents.ENTITY_PLAYER_HURT_FREEZE, 0.3f, 0.7f);                       // eerie wind-ish
         });
         ServerScheduler.runLater(230, () -> {
             AZState cur = ABSOLUTE_ZERO.get(u);
@@ -1131,6 +1141,74 @@ public final class WeaponAbilities {
         }
         st.originals.putIfAbsent(pos, old);
         w.setBlockState(pos, block.getDefaultState());
+    }
+
+    /** One ice block that is also tracked as a "spike" so shatter fractures + reverts it. */
+    private static void azSpike(ServerWorld w, AZState st, BlockPos pos, Block block) {
+        BlockState old = w.getBlockState(pos);
+        if (!old.isAir() && !old.isReplaceable() && old.getBlock() != Blocks.WATER) {
+            return;
+        }
+        st.originals.putIfAbsent(pos, old);
+        w.setBlockState(pos, block.getDefaultState());
+        st.spikes.add(pos);
+    }
+
+    /** A tapering blue-ice spire with a wider foot on taller ones + a lighter tip. */
+    private static void iceSpire(ServerWorld w, AZState st, int x, int sy, int z, int height) {
+        if (height >= 6) {
+            for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                azSpike(w, st, new BlockPos(x + d[0], sy + 1, z + d[1]), Blocks.BLUE_ICE);
+            }
+        }
+        for (int y = 1; y <= height; y++) {
+            Block b = y >= height - 1 ? Blocks.PACKED_ICE : Blocks.BLUE_ICE;
+            azSpike(w, st, new BlockPos(x, sy + y, z), b);
+        }
+        Vec3d tip = new Vec3d(x + 0.5, sy + height, z + 0.5);
+        particle(w, ParticleTypes.END_ROD, tip, 6, 0.15, 0.02);
+        particle(w, dust(C_CRYO, 1.6f), tip, 8, 0.25, 0.0);
+        particle(w, ParticleTypes.ITEM_SNOWBALL, new Vec3d(x + 0.5, sy + 1, z + 0.5), 16, 0.35, 0.2);
+    }
+
+    /** Encase a frozen enemy in a translucent ice shell (walls around it, not on it). */
+    private static void iceShell(ServerWorld w, AZState st, LivingEntity le) {
+        BlockPos feet = le.getBlockPos();
+        for (int dy = 0; dy <= 1; dy++) {
+            for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                azSpike(w, st, feet.add(d[0], dy, d[1]), Blocks.PACKED_ICE);
+            }
+        }
+        particle(w, ParticleTypes.SNOWFLAKE, le.getPos().add(0, 1, 0), 20, 0.5, 0.05);
+    }
+
+    /** Vertical column of frost-light shooting up from a point. */
+    private static void lightPillar(ServerWorld w, Vec3d base) {
+        for (double y = 0; y < 16; y += 0.5) {
+            Vec3d pt = base.add(0, y, 0);
+            particle(w, ParticleTypes.END_ROD, pt, 2, 0.12, 0.02);
+            particle(w, dust(C_CRYO, 1.8f), pt, 2, 0.18, 0.0);
+            if (y < 6) {
+                particle(w, ParticleTypes.SNOWFLAKE, pt, 2, 0.2, 0.02);
+            }
+        }
+    }
+
+    /** Bright flat ring racing outward along the ground over a few ticks. */
+    private static void shockRing(ServerWorld w, Vec3d center, double maxR) {
+        ServerScheduler.runTimer(1, 1, 8, new Runnable() {
+            double r = 1;
+            @Override
+            public void run() {
+                for (int i = 0; i < 48; i++) {
+                    double a = Math.PI * 2 * i / 48;
+                    Vec3d pt = center.add(Math.cos(a) * r, 0.25, Math.sin(a) * r);
+                    particle(w, ParticleTypes.END_ROD, pt, 1, 0.0, 0.0);
+                    particle(w, dust(C_CRYO, 1.5f), pt, 1, 0.05, 0.0);
+                }
+                r += maxR / 8.0;
+            }
+        });
     }
 
     /** Per-cast damage is already capped by the caller's hit-set; applies corrosion too. */

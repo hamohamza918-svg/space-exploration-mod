@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.RotationAxis;
@@ -14,14 +15,18 @@ import org.joml.Matrix4f;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Bounded, local GPU effects for the Cryo Lance casts. World time keeps nearby viewers in sync. */
+/** Bounded, local GPU effects for the Cryo Lance casts + camera shake. */
 public final class CryoCastEffects {
     private static final Identifier RUNE = Identifier.of("spacemod", "textures/effect/cryo_rune.png");
     private static final List<CryoCastPayload> ACTIVE = new ArrayList<>();
-    private static final int[] RING_RADII = {4, 7, 10, 12};
-    private static final float[] RING_HEIGHT = {3.0f, 4.5f, 6.0f, 7.5f};
+
+    private static float shake = 0f;
+    private static int frame = 0;
 
     private CryoCastEffects() {}
+
+    public static float shakeAmount() { return shake; }
+    public static int shakeFrame() { return frame; }
 
     public static void register() {
         ClientPlayNetworking.registerGlobalReceiver(CryoCastPayload.ID, (packet, context) ->
@@ -35,14 +40,32 @@ public final class CryoCastEffects {
                             (old.animation().equals(packet.animation()) || packet.animation().equals("shatter")));
                     if (ACTIVE.size() >= 24) ACTIVE.remove(0);
                     ACTIVE.add(packet);
+                    if (packet.animation().equals("shatter")) triggerShake(packet, 1.0f);
                 }));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ACTIVE.clear());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { ACTIVE.clear(); shake = 0f; });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            frame++;
+            shake *= 0.82f;
+            if (shake < 0.01f) shake = 0f;
             if (client.world == null) { ACTIVE.clear(); return; }
             ACTIVE.removeIf(p -> !p.dimension().equals(client.world.getRegistryKey().getValue()) ||
                     client.world.getTime() - p.startTick() > p.duration());
+            // slam shake for the ultimate around tick 13
+            for (CryoCastPayload p : ACTIVE) {
+                if (!p.animation().equals("absolute_zero")) continue;
+                long age = client.world.getTime() - p.startTick();
+                if (age >= 12 && age <= 17) triggerShake(p, 0.6f);
+            }
         });
         WorldRenderEvents.AFTER_ENTITIES.register(CryoCastEffects::render);
+    }
+
+    private static void triggerShake(CryoCastPayload p, float intensity) {
+        var player = MinecraftClient.getInstance().player;
+        if (player == null) return;
+        if (player.squaredDistanceTo(p.x(), p.y(), p.z()) <= 34 * 34) {
+            shake = Math.max(shake, intensity);
+        }
     }
 
     private static void render(WorldRenderContext context) {
@@ -61,36 +84,14 @@ public final class CryoCastEffects {
             matrices.push();
             matrices.translate(p.x() - camera.x, p.y() - camera.y, p.z() - camera.z);
             VertexConsumer vertices = context.consumers().getBuffer(RenderLayer.getEntityTranslucentEmissive(RUNE));
-
-            // ground circle (under the caster)
+            // circle under the caster
             discPair(matrices, vertices, 0.065f, radius, age, fade);
-            // mirrored circle overhead
-            discPair(matrices, vertices, 2.45f, radius, age, fade * 0.85f);
-
-            // crystalline ice spikes for the ultimate (replaces vanilla ice blocks)
-            if (ultimate) {
-                Matrix4f mat = matrices.peek().getPositionMatrix();
-                for (int ri = 0; ri < RING_RADII.length; ri++) {
-                    float ringStart = 22 + ri * 6f;
-                    if (age < ringStart) continue;
-                    float grow = Math.min(1f, (age - ringStart) / 10f);
-                    float rr = RING_RADII[ri];
-                    for (int s = 0; s < 9; s++) {
-                        double a = Math.PI * 2 * s / 9 + ri * 0.3;
-                        float ox = (float) (Math.cos(a) * rr);
-                        float oz = (float) (Math.sin(a) * rr);
-                        float h = RING_HEIGHT[ri] * grow * (0.8f + 0.4f * ((s + ri) % 3) / 2f);
-                        float w = 0.28f + ri * 0.03f;
-                        int alpha = (int) (fade * 170);
-                        crystal(vertices, mat, ox, oz, w, h, alpha, a);
-                    }
-                }
-            }
+            // mirrored circle overhead (raised higher)
+            discPair(matrices, vertices, 3.6f, radius, age, fade * 0.85f);
             matrices.pop();
         }
     }
 
-    /** Two counter-rotating rune discs at the given height offset. */
     private static void discPair(net.minecraft.client.util.math.MatrixStack matrices, VertexConsumer v,
                                  float yOff, float radius, float age, float fade) {
         matrices.push();
@@ -109,31 +110,6 @@ public final class CryoCastEffects {
 
     private static void flat(VertexConsumer v, Matrix4f m, float x, float z, float u, float t, int alpha) {
         v.vertex(m, x, 0, z).color(125, 230, 255, alpha).texture(u, t)
-                .overlay(OverlayTexture.DEFAULT_UV).light(LightmapTextureManager.MAX_LIGHT_COORDINATE).normal(0, 1, 0);
-    }
-
-    /** A tapered 4-sided crystal spire (base square -> apex point), translucent + glowing. */
-    private static void crystal(VertexConsumer v, Matrix4f m, float ox, float oz, float w, float h, int alpha, double spin) {
-        float ax = ox, ay = h, az = oz;                 // apex
-        float c = (float) Math.cos(spin) * w, s = (float) Math.sin(spin) * w;
-        // four base corners rotated slightly by spin for varied facets
-        float[][] base = {
-                {ox - c - s, oz - s + c}, {ox + c - s, oz + s + c},
-                {ox + c + s, oz + s - c}, {ox - c + s, oz - s - c}
-        };
-        int tip = 235; // brighter tip
-        for (int i = 0; i < 4; i++) {
-            float[] b1 = base[i], b2 = base[(i + 1) % 4];
-            // tapered quad: two base corners + apex (apex duplicated to collapse top edge)
-            face(v, m, b1[0], 0, b1[1], 0, 1, alpha);
-            face(v, m, b2[0], 0, b2[1], 1, 1, alpha);
-            face(v, m, ax, ay, az, 1, 0, tip);
-            face(v, m, ax, ay, az, 0, 0, tip);
-        }
-    }
-
-    private static void face(VertexConsumer v, Matrix4f m, float x, float y, float z, float u, float t, int alpha) {
-        v.vertex(m, x, y, z).color(150, 235, 255, alpha).texture(u, t)
                 .overlay(OverlayTexture.DEFAULT_UV).light(LightmapTextureManager.MAX_LIGHT_COORDINATE).normal(0, 1, 0);
     }
 }
