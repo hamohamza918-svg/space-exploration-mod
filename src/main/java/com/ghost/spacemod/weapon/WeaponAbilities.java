@@ -1155,28 +1155,33 @@ public final class WeaponAbilities {
         st.spikes.add(pos);
     }
 
-    /** A tapering ice spire: dense blue-ice base → packed-ice mid → glassy translucent ice tip. */
+    /** A jagged, leaning, pointed ice crystal: wide plus-base → tapering trunk → sharp ice tip. */
     private static void iceSpire(ServerWorld w, AZState st, int x, int sy, int z, int height) {
-        if (height >= 5) { // wider foot for tall spires
-            for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
-                azSpike(w, st, new BlockPos(x + d[0], sy + 1, z + d[1]), Blocks.BLUE_ICE);
-                if (height >= 8) {
-                    azSpike(w, st, new BlockPos(x + d[0], sy + 2, z + d[1]), Blocks.PACKED_ICE);
-                }
-            }
+        // wide plus-shaped foot so it grows out of the ground, not a floating column
+        for (int[] d : new int[][]{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+            azSpike(w, st, new BlockPos(x + d[0], sy + 1, z + d[1]), Blocks.BLUE_ICE);
         }
-        for (int y = 1; y <= height; y++) {
-            Block b;
-            if (y <= height * 0.4) {
-                b = Blocks.BLUE_ICE;      // dense glowing base
-            } else if (y >= height - 2) {
-                b = Blocks.ICE;           // glassy translucent tip
-            } else {
-                b = Blocks.PACKED_ICE;    // frosted mid
+        // pseudo-random lean + jag driven by position (deterministic, no RNG)
+        int leanDx = ((x * 7 + z) % 3) - 1;
+        int leanDz = ((x + z * 5) % 3) - 1;
+        int lx = x, lz = z;
+        int lean1 = Math.max(2, (int) (height * 0.4));
+        int lean2 = Math.max(3, (int) (height * 0.72));
+        for (int y = 2; y <= height; y++) {
+            double frac = (double) y / height;
+            Block b = frac < 0.45 ? Blocks.BLUE_ICE : (frac > 0.8 ? Blocks.ICE : Blocks.PACKED_ICE);
+            azSpike(w, st, new BlockPos(lx, sy + y, lz), b);
+            // side jags lower down for a rough crystalline silhouette
+            if (frac < 0.6 && y % 2 == 0) {
+                int sdx = ((x + y) % 2 == 0) ? 1 : -1;
+                azSpike(w, st, new BlockPos(lx + sdx, sy + y, lz), Blocks.PACKED_ICE);
             }
-            azSpike(w, st, new BlockPos(x, sy + y, z), b);
+            if (y == lean1 || y == lean2) { lx += leanDx; lz += leanDz; }
         }
-        Vec3d tip = new Vec3d(x + 0.5, sy + height, z + 0.5);
+        // sharp translucent tip a block above the trunk
+        BlockPos tipPos = new BlockPos(lx, sy + height + 1, lz);
+        azSpike(w, st, tipPos, Blocks.ICE);
+        Vec3d tip = new Vec3d(lx + 0.5, sy + height + 1.5, lz + 0.5);
         particle(w, ParticleTypes.END_ROD, tip, 8, 0.15, 0.02);
         particle(w, dust(C_CRYO, 1.7f), tip, 10, 0.25, 0.0);
         particle(w, ParticleTypes.ITEM_SNOWBALL, new Vec3d(x + 0.5, sy + 1, z + 0.5), 18, 0.35, 0.2);
