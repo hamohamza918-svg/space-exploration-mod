@@ -11,10 +11,12 @@ base {
 }
 
 repositories {
+    maven { url "https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/" }
     mavenCentral()
 }
 
 dependencies {
+    modImplementation "software.bernie.geckolib:geckolib-fabric-1.21.8:5.2.2"
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"

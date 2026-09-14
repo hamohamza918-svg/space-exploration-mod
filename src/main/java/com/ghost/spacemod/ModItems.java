@@ -62,7 +62,9 @@ public final class ModItems {
     public static Item registerWeapon(String name, String weaponId) {
         Identifier id = Identifier.of(SpaceMod.MOD_ID, name);
         RegistryKey<Item> key = RegistryKey.of(RegistryKeys.ITEM, id);
-        Item item = new WeaponItem(new Item.Settings().maxCount(1).registryKey(key), weaponId);
+        Item.Settings settings = new Item.Settings().maxCount(1).registryKey(key);
+        Item item = weaponId.equals("cryo_lance")
+                ? new com.ghost.spacemod.weapon.CryoLanceItem(settings) : new WeaponItem(settings, weaponId);
         Registry.register(Registries.ITEM, key, item);
         ITEMS.add(item);
         return item;

@@ -430,13 +430,15 @@ public final class WeaponAbilities {
     // ==== CRYO LANCE ======================================================
 
     private static void permafrostStream(ServerWorld w, ServerPlayerEntity p, ItemStack stack) {
-        if (!ready(p, stack, "permafrost", 12)) {
+        if (!ready(p, stack, "permafrost", 40)) {
             return;
         }
+        CryoLanceItem.cast(w, p, stack, "stream", p.getPos(), 40);
         sound(w, p.getEyePos(), SoundEvents.BLOCK_GLASS_BREAK, 0.9f, 1.4f);
         // 2s channel: frost + 3 dmg/sec; a target kept in the stream for 2s freezes 1s
         Map<Integer, Integer> contact = new HashMap<>();
         ServerScheduler.runTimer(1, 2, 20, () -> { // 40 ticks total (2s), every 2 ticks
+            if (!p.isAlive() || p.getWorld() != w || p.getMainHandStack() != stack) return;
             Vec3d eye = p.getEyePos();
             Vec3d dir = p.getRotationVector();
             for (double d = 1; d < 8; d += 0.5) {
@@ -469,6 +471,7 @@ public final class WeaponAbilities {
         if (!ready(p, stack, "glacial", 200)) {
             return;
         }
+        CryoLanceItem.cast(w, p, stack, "nova", p.getPos(), 24);
         Vec3d c = p.getPos();
         sound(w, c, SoundEvents.BLOCK_GLASS_BREAK, 1.5f, 0.6f);
         sound(w, c, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 0.8f, 1.4f);
@@ -895,6 +898,9 @@ public final class WeaponAbilities {
         final Map<BlockPos, BlockState> originals = new HashMap<>();
         final java.util.Set<Integer> frozen = new java.util.HashSet<>();
         boolean resolved = false;
+        ServerWorld world;
+        Vec3d center;
+        ItemStack stack;
         double radius;
     }
 
@@ -903,7 +909,7 @@ public final class WeaponAbilities {
         String u = p.getUuidAsString();
         AZState active = ABSOLUTE_ZERO.get(u);
         if (active != null && !active.resolved) {
-            shatterAbsoluteZero(w, p, active); // re-press = shatter
+            shatterAbsoluteZero(active.world, p, active); // re-press = shatter
             return;
         }
         if (!ready(p, stack, "absolute_zero", 600)) { // 30s
@@ -912,6 +918,10 @@ public final class WeaponAbilities {
         }
         AZState st = new AZState();
         st.radius = 12;
+        st.world = w;
+        st.center = p.getPos();
+        st.stack = stack;
+        CryoLanceItem.cast(w, p, stack, "absolute_zero", st.center, 230);
         ABSOLUTE_ZERO.put(u, st);
         final Vec3d center = p.getPos();
         final int cx = (int) Math.floor(center.x), cz = (int) Math.floor(center.z), cy = (int) Math.floor(center.y);
@@ -924,8 +934,9 @@ public final class WeaponAbilities {
             int t = 0;
             @Override
             public void run() {
+                if (st.resolved) return;
                 t++;
-                magicCircle(w, center, st.radius, t * 0.5, C_CRYO);
+                // Rune disc is rendered locally from one synchronized cast event.
                 for (int i = 0; i < 12; i++) {
                     double a = Math.PI * 2 * i / 12 + t;
                     Vec3d o = center.add(Math.cos(a) * (2.5 - t * 0.2), 0.4 + t * 0.15, Math.sin(a) * (2.5 - t * 0.2));
@@ -938,6 +949,7 @@ public final class WeaponAbilities {
 
         // --- ground strike (0.6s) ---
         ServerScheduler.runLater(13, () -> {
+            if (st.resolved) return;
             sound(w, center, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 1.4f, 1.2f);
             sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.5f, 0.5f);
             particle(w, ParticleTypes.EXPLOSION_EMITTER, center, 2, 0.4, 0.0);
@@ -950,6 +962,7 @@ public final class WeaponAbilities {
             double r = 2;
             @Override
             public void run() {
+                if (st.resolved) return;
                 double next = r + (st.radius - 2) / 9.0;
                 for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 32) {
                     int x = (int) Math.round(cx + Math.cos(ang) * r);
@@ -986,6 +999,7 @@ public final class WeaponAbilities {
             final int rr = ringRadii[ri];
             final int height = 2 + ri * 2; // outer rings taller (up to ~8)
             ServerScheduler.runLater(22 + ri * 6, () -> {
+                if (st.resolved) return;
                 sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.2f, 0.7f + rr * 0.02f);
                 for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 9) { // ~18 spikes/ring w/ gaps
                     int x = (int) Math.round(cx + Math.cos(ang) * rr);
@@ -1037,7 +1051,8 @@ public final class WeaponAbilities {
     private static void shatterAbsoluteZero(ServerWorld w, ServerPlayerEntity p, AZState st) {
         st.resolved = true;
         String u = p.getUuidAsString();
-        Vec3d center = p.getPos();
+        Vec3d center = st.center;
+        CryoLanceItem.cast(w, p, st.stack, "shatter", center, 20);
         sound(w, center, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 1.4f, 0.7f);
         // fracture spikes outer -> center in sequence
         java.util.List<BlockPos> spikes = new ArrayList<>(st.spikes);
@@ -1079,7 +1094,7 @@ public final class WeaponAbilities {
                     w.setBlockState(pos, old);
                 }
             });
-            ABSOLUTE_ZERO.remove(u);
+            ABSOLUTE_ZERO.remove(u, st);
         });
     }
 

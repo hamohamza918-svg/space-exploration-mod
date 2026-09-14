@@ -18,6 +18,7 @@ public class SpaceModClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        com.ghost.spacemod.client.CryoCastEffects.register();
         EntityRendererRegistry.register(ModEntities.VOID_WALKER, ZombieEntityRenderer::new);
 
         ultimateKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
