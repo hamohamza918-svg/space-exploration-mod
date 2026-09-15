@@ -27,6 +27,7 @@ public class SpaceMod implements ModInitializer {
         SpaceEnvironment.register();
         ModCommands.register();
         ServerScheduler.init();
+        com.ghost.spacemod.weapon.EffectConfig.load();
 
         PayloadTypeRegistry.playS2C().register(com.ghost.spacemod.net.CryoCastPayload.ID,
                 com.ghost.spacemod.net.CryoCastPayload.CODEC);

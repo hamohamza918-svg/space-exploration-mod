@@ -48,8 +48,9 @@ public final class CryoLanceItem extends WeaponItem implements GeoItem {
         if (stack.getItem() instanceof CryoLanceItem item && player.getWorld() == world) {
             item.triggerAnim(player, GeoItem.getOrAssignId(stack, world), "cast", animation);
         }
+        String design = animation.equals("absolute_zero") ? EffectConfig.toJson() : "";
         CryoCastPayload packet = new CryoCastPayload(world.getRegistryKey().getValue(),
-                player.getId(), animation, center.x, center.y, center.z, world.getTime(), duration);
+                player.getId(), animation, center.x, center.y, center.z, world.getTime(), duration, design);
         for (ServerPlayerEntity viewer : world.getPlayers()) {
             if (viewer.squaredDistanceTo(center) <= 64 * 64 && ServerPlayNetworking.canSend(viewer, CryoCastPayload.ID))
                 ServerPlayNetworking.send(viewer, packet);

@@ -1054,12 +1054,13 @@ public final class WeaponAbilities {
             shatterAbsoluteZero(active.world, p, active); // re-press = shatter
             return;
         }
-        if (!ready(p, stack, "absolute_zero", 600)) { // 30s
+        EffectConfig.Design cfg = EffectConfig.get();
+        if (!ready(p, stack, "absolute_zero", cfg.cooldownTicks)) {
             p.sendMessage(net.minecraft.text.Text.literal("✦ Absolute Zero is recharging.").formatted(net.minecraft.util.Formatting.AQUA), true);
             return;
         }
         AZState st = new AZState();
-        st.radius = 12;
+        st.radius = cfg.radius;
         st.world = w;
         st.center = p.getPos();
         st.stack = stack;
@@ -1141,7 +1142,7 @@ public final class WeaponAbilities {
                 }
                 for (Entity e : living(w, p, around(center, next))) {
                     if (e instanceof LivingEntity le && le.squaredDistanceTo(center.x, le.getY(), center.z) <= next * next && waveHit.add(le.getId())) {
-                        hurtCapped(w, p, le, 4f);
+                        hurtCapped(w, p, le, (float) cfg.dmgWave);
                         applyFrostHit(w, le, 4);
                     }
                 }
@@ -1174,7 +1175,7 @@ public final class WeaponAbilities {
             if (st.resolved) return;
             for (Entity e : living(w, p, around(center, borderR + 2))) {
                 if (e instanceof LivingEntity le && spikeHit.add(le.getId())) {
-                    hurtCapped(w, p, le, 8f);
+                    hurtCapped(w, p, le, (float) cfg.dmgSpike);
                     setFrozen(w, le, 140);
                     st.frozen.add(le.getId());
                     iceShell(w, st, le);
@@ -1238,7 +1239,8 @@ public final class WeaponAbilities {
         java.util.Set<Integer> hit = new java.util.HashSet<>();
         for (Entity e : living(w, p, around(center, st.radius))) {
             if (e instanceof LivingEntity le && hit.add(le.getId())) {
-                float dmg = st.frozen.contains(le.getId()) ? 6f * 1.5f : 6f; // frozen shells take extra
+                float base = (float) EffectConfig.get().dmgShatter;
+                float dmg = st.frozen.contains(le.getId()) ? base * 1.5f : base; // frozen shells take extra
                 hurtCapped(w, p, le, dmg);
                 impact(w, le.getPos().add(0, 1, 0), C_CRYO, SoundEvents.BLOCK_GLASS_BREAK);
                 particle(w, ParticleTypes.ITEM_SNOWBALL, le.getPos().add(0, 1, 0), 24, 0.5, 0.25);

@@ -54,7 +54,7 @@ public final class ArcCarbineItem extends WeaponItem implements GeoItem {
         }
         if (effect != null) {
             CryoCastPayload packet = new CryoCastPayload(world.getRegistryKey().getValue(),
-                    player.getId(), effect, center.x, center.y, center.z, world.getTime(), duration);
+                    player.getId(), effect, center.x, center.y, center.z, world.getTime(), duration, "");
             for (ServerPlayerEntity viewer : world.getPlayers()) {
                 if (viewer.squaredDistanceTo(center) <= 64 * 64 && ServerPlayNetworking.canSend(viewer, CryoCastPayload.ID)) {
                     ServerPlayNetworking.send(viewer, packet);

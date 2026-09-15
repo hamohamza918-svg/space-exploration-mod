@@ -19,10 +19,17 @@ public final class ModCommands {
     }
 
     public static void register() {
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
-                dispatcher.register(CommandManager.literal("planet")
-                        .then(CommandManager.argument("dest", StringArgumentType.word())
-                                .executes(ctx -> travel(ctx.getSource(), StringArgumentType.getString(ctx, "dest"))))));
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            dispatcher.register(CommandManager.literal("planet")
+                    .then(CommandManager.argument("dest", StringArgumentType.word())
+                            .executes(ctx -> travel(ctx.getSource(), StringArgumentType.getString(ctx, "dest")))));
+            dispatcher.register(CommandManager.literal("spacemod")
+                    .then(CommandManager.literal("reload").executes(ctx -> {
+                        com.ghost.spacemod.weapon.EffectConfig.load();
+                        ctx.getSource().sendFeedback(() -> Text.literal("[Space Exploration] effect config reloaded."), true);
+                        return 1;
+                    })));
+        });
         SpaceMod.LOGGER.info("[Space Exploration] commands registered");
     }
 
