@@ -430,13 +430,15 @@ public final class WeaponAbilities {
     // ==== CRYO LANCE ======================================================
 
     private static void permafrostStream(ServerWorld w, ServerPlayerEntity p, ItemStack stack) {
-        if (!ready(p, stack, "permafrost", 12)) {
+        if (!ready(p, stack, "permafrost", 40)) {
             return;
         }
+        CryoLanceItem.cast(w, p, stack, "stream", p.getPos(), 40);
         sound(w, p.getEyePos(), SoundEvents.BLOCK_GLASS_BREAK, 0.9f, 1.4f);
         // 2s channel: frost + 3 dmg/sec; a target kept in the stream for 2s freezes 1s
         Map<Integer, Integer> contact = new HashMap<>();
         ServerScheduler.runTimer(1, 2, 20, () -> { // 40 ticks total (2s), every 2 ticks
+            if (!p.isAlive() || p.getWorld() != w || p.getMainHandStack() != stack) return;
             Vec3d eye = p.getEyePos();
             Vec3d dir = p.getRotationVector();
             for (double d = 1; d < 8; d += 0.5) {
@@ -469,6 +471,7 @@ public final class WeaponAbilities {
         if (!ready(p, stack, "glacial", 200)) {
             return;
         }
+        CryoLanceItem.cast(w, p, stack, "nova", p.getPos(), 24);
         Vec3d c = p.getPos();
         sound(w, c, SoundEvents.BLOCK_GLASS_BREAK, 1.5f, 0.6f);
         sound(w, c, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 0.8f, 1.4f);
@@ -891,10 +894,12 @@ public final class WeaponAbilities {
     // ==== ULTIMATE: CRYO LANCE — ABSOLUTE ZERO ===========================
 
     private static final class AZState {
-        final java.util.List<BlockPos> spikes = new ArrayList<>();
-        final Map<BlockPos, BlockState> originals = new HashMap<>();
+        long endTick;
         final java.util.Set<Integer> frozen = new java.util.HashSet<>();
         boolean resolved = false;
+        ServerWorld world;
+        Vec3d center;
+        ItemStack stack;
         double radius;
     }
 
@@ -903,7 +908,7 @@ public final class WeaponAbilities {
         String u = p.getUuidAsString();
         AZState active = ABSOLUTE_ZERO.get(u);
         if (active != null && !active.resolved) {
-            shatterAbsoluteZero(w, p, active); // re-press = shatter
+            shatterAbsoluteZero(active.world, p, active); // re-press = shatter
             return;
         }
         if (!ready(p, stack, "absolute_zero", 600)) { // 30s
@@ -912,6 +917,11 @@ public final class WeaponAbilities {
         }
         AZState st = new AZState();
         st.radius = 12;
+        st.endTick = w.getTime() + 230;
+        st.world = w;
+        st.center = p.getPos();
+        st.stack = stack;
+        CryoLanceItem.cast(w, p, stack, "absolute_zero", st.center, 230);
         ABSOLUTE_ZERO.put(u, st);
         final Vec3d center = p.getPos();
         final int cx = (int) Math.floor(center.x), cz = (int) Math.floor(center.z), cy = (int) Math.floor(center.y);
@@ -924,8 +934,9 @@ public final class WeaponAbilities {
             int t = 0;
             @Override
             public void run() {
+                if (st.resolved) return;
                 t++;
-                magicCircle(w, center, st.radius, t * 0.5, C_CRYO);
+                // Rune disc is rendered locally from one synchronized cast event.
                 for (int i = 0; i < 12; i++) {
                     double a = Math.PI * 2 * i / 12 + t;
                     Vec3d o = center.add(Math.cos(a) * (2.5 - t * 0.2), 0.4 + t * 0.15, Math.sin(a) * (2.5 - t * 0.2));
@@ -938,10 +949,10 @@ public final class WeaponAbilities {
 
         // --- ground strike (0.6s) ---
         ServerScheduler.runLater(13, () -> {
+            if (st.resolved) return;
             sound(w, center, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 1.4f, 1.2f);
             sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.5f, 0.5f);
-            particle(w, ParticleTypes.EXPLOSION_EMITTER, center, 2, 0.4, 0.0);
-            particle(w, ParticleTypes.FLASH, center.add(0, 1, 0), 2, 0, 0);
+            sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, 1.4f, 0.5f);
         });
 
         // --- freeze wave: expanding frost front, follows ground, stops at walls (0.6–1.5s) ---
@@ -950,6 +961,7 @@ public final class WeaponAbilities {
             double r = 2;
             @Override
             public void run() {
+                if (st.resolved) return;
                 double next = r + (st.radius - 2) / 9.0;
                 for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 32) {
                     int x = (int) Math.round(cx + Math.cos(ang) * r);
@@ -960,12 +972,6 @@ public final class WeaponAbilities {
                     int sy = surfaceY(w, x, z, cy);
                     if (sy == Integer.MIN_VALUE) {
                         continue;
-                    }
-                    BlockPos surf = new BlockPos(x, sy, z);
-                    if (w.getBlockState(surf).getBlock() == Blocks.WATER) {
-                        azPlace(w, st, surf, Blocks.ICE);
-                    } else if ((x + z) % 2 == 0) {
-                        azPlace(w, st, surf.up(), Blocks.SNOW);
                     }
                     particle(w, ParticleTypes.SNOWFLAKE, new Vec3d(x + 0.5, sy + 1.1, z + 0.5), 1, 0.1, 0.01);
                 }
@@ -986,8 +992,11 @@ public final class WeaponAbilities {
             final int rr = ringRadii[ri];
             final int height = 2 + ri * 2; // outer rings taller (up to ~8)
             ServerScheduler.runLater(22 + ri * 6, () -> {
+                if (st.resolved) return;
                 sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.2f, 0.7f + rr * 0.02f);
-                for (double ang = 0; ang < Math.PI * 2; ang += Math.PI / 9) { // ~18 spikes/ring w/ gaps
+                var crystals = new java.util.ArrayList<com.ghost.spacemod.net.CryoSpikesPayload.Spike>();
+                for (int n = 0; n < 18; n++) {
+                    double ang = n * Math.PI / 9;
                     int x = (int) Math.round(cx + Math.cos(ang) * rr);
                     int z = (int) Math.round(cz + Math.sin(ang) * rr);
                     if (!wallClear(w, cx, cy, cz, x, z)) {
@@ -997,16 +1006,24 @@ public final class WeaponAbilities {
                     if (sy == Integer.MIN_VALUE) {
                         continue;
                     }
-                    int h = height + ((x + z) % 3); // slight variation
-                    for (int y = 1; y <= h; y++) {
-                        Block b = y > h - 2 ? Blocks.BLUE_ICE : Blocks.PACKED_ICE;
-                        BlockPos sp = new BlockPos(x, sy + y, z);
-                        azPlace(w, st, sp, b);
-                        st.spikes.add(sp);
+                    int h = height + Math.floorMod(x + z, 3);
+                    // Probe clearance once on the server; render geometry does not alter blocks.
+                    int clear = 0;
+                    for (int y=1;y<=h;y++) {
+                        BlockPos probe = new BlockPos(x,sy+y,z);
+                        if (!w.getBlockState(probe).isAir() && !w.getBlockState(probe).isReplaceable()) break;
+                        clear++;
                     }
-                    Vec3d baseV = new Vec3d(x + 0.5, sy + 1, z + 0.5);
-                    particle(w, ParticleTypes.ITEM_SNOWBALL, baseV, 14, 0.4, 0.15);
-                    particle(w, dust(C_CRYO, 1.6f), baseV.add(0, h * 0.5, 0), 8, 0.3, 0.02);
+                    if (clear < 2) continue;
+                    crystals.add(new com.ghost.spacemod.net.CryoSpikesPayload.Spike(
+                            x + 0.5, sy + 1, z + 0.5, clear, (float)ang));
+                }
+                var packet = new com.ghost.spacemod.net.CryoSpikesPayload(w.getRegistryKey().getValue(),
+                        p.getId(), w.getTime(), st.endTick, crystals);
+                for (ServerPlayerEntity viewer : w.getPlayers()) {
+                    if (viewer.squaredDistanceTo(center) <= 64 * 64 &&
+                            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.canSend(viewer, packet.getId()))
+                        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(viewer, packet);
                 }
                 for (Entity e : living(w, p, around(center, rr + 1.5))) {
                     if (e instanceof LivingEntity le && spikeHit.add(le.getId())) {
@@ -1037,50 +1054,22 @@ public final class WeaponAbilities {
     private static void shatterAbsoluteZero(ServerWorld w, ServerPlayerEntity p, AZState st) {
         st.resolved = true;
         String u = p.getUuidAsString();
-        Vec3d center = p.getPos();
+        Vec3d center = st.center;
+        CryoLanceItem.cast(w, p, st.stack, "shatter", center, 20);
         sound(w, center, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 1.4f, 0.7f);
-        // fracture spikes outer -> center in sequence
-        java.util.List<BlockPos> spikes = new ArrayList<>(st.spikes);
-        spikes.sort(Comparator.comparingDouble((BlockPos b) -> -b.getSquaredDistance(center.x, center.y, center.z)));
-        int per = Math.max(1, spikes.size() / 8);
-        for (int i = 0; i < spikes.size(); i++) {
-            final BlockPos sp = spikes.get(i);
-            ServerScheduler.runLater(1 + i / per, () -> {
-                BlockState old = st.originals.remove(sp);
-                if (w.getBlockState(sp).isOf(Blocks.PACKED_ICE) || w.getBlockState(sp).isOf(Blocks.BLUE_ICE)) {
-                    w.setBlockState(sp, old != null ? old : Blocks.AIR.getDefaultState());
-                }
-                Vec3d v = new Vec3d(sp.getX() + 0.5, sp.getY() + 0.5, sp.getZ() + 0.5);
-                particle(w, ParticleTypes.ITEM_SNOWBALL, v, 10, 0.3, 0.2);
-                particle(w, dust(C_CRYO, 1.5f), v, 6, 0.3, 0.05);
-                sound(w, v, SoundEvents.BLOCK_GLASS_BREAK, 0.5f, 1.2f);
-            });
-        }
+        // Clients fracture the existing meshes into shards; no block debris or explosion sprite.
+        sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.5f, 0.65f);
+        sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_RESONATE, 1.4f, 0.5f);
         // shatter frozen enemies
         java.util.Set<Integer> hit = new java.util.HashSet<>();
         for (Entity e : living(w, p, around(center, st.radius))) {
             if (e instanceof LivingEntity le && hit.add(le.getId())) {
                 float dmg = st.frozen.contains(le.getId()) ? 6f * 1.5f : 6f; // frozen shells take extra
                 hurtCapped(w, p, le, dmg);
-                impact(w, le.getPos().add(0, 1, 0), C_CRYO, SoundEvents.BLOCK_GLASS_BREAK);
                 particle(w, ParticleTypes.ITEM_SNOWBALL, le.getPos().add(0, 1, 0), 24, 0.5, 0.25);
             }
         }
-        // final deep boom + revert any remaining frost, then clear state
-        int totalDelay = 4 + spikes.size() / per;
-        ServerScheduler.runLater(totalDelay + 2, () -> {
-            sound(w, center, SoundEvents.ENTITY_WARDEN_SONIC_BOOM, 1.5f, 0.5f);
-            particle(w, ParticleTypes.EXPLOSION_EMITTER, center.add(0, 0.5, 0), 2, 0.5, 0.0);
-        });
-        ServerScheduler.runLater(totalDelay + 40, () -> {
-            st.originals.forEach((pos, old) -> {
-                BlockState now = w.getBlockState(pos);
-                if (now.isOf(Blocks.PACKED_ICE) || now.isOf(Blocks.BLUE_ICE) || now.isOf(Blocks.SNOW) || now.isOf(Blocks.ICE)) {
-                    w.setBlockState(pos, old);
-                }
-            });
-            ABSOLUTE_ZERO.remove(u);
-        });
+        ABSOLUTE_ZERO.remove(u, st);
     }
 
     /** Rotating rune-ring "magic circle" drawn from particles on the ground. */
@@ -1102,15 +1091,6 @@ public final class WeaponAbilities {
                 particle(w, ParticleTypes.END_ROD, o, 1, 0.02, 0.0);
             }
         }
-    }
-
-    private static void azPlace(ServerWorld w, AZState st, BlockPos pos, Block block) {
-        BlockState old = w.getBlockState(pos);
-        if (!old.isAir() && !old.isReplaceable() && old.getBlock() != Blocks.WATER) {
-            return;
-        }
-        st.originals.putIfAbsent(pos, old);
-        w.setBlockState(pos, block.getDefaultState());
     }
 
     /** Per-cast damage is already capped by the caller's hit-set; applies corrosion too. */

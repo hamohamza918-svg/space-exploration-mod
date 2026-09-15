@@ -1,3 +1,5 @@
+> **Cryo animation branch:** use [the alpha test instructions](docs/CRYO_ALPHA.md). This branch needs GeckoLib 5.2.2 on clients and server. The older guide below describes the original 0.1.0 deployment.
+
 # Space Exploration — Install Guide (Fabric mod, Minecraft 1.21.8)
 
 This is a **Fabric mod**, so both the **server** and **every player** must install it. A plain
