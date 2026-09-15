@@ -276,6 +276,108 @@ public final class WeaponAbilities {
         w.spawnEntity(bolt);
     }
 
+    // ==== ULTIMATE: ARC CARBINE — HEAVEN'S JUDGMENT ======================
+
+    private static final int C_JUDGE = 0xffe45e; // electric yellow-white
+
+    public static void heavensJudgment(ServerWorld w, ServerPlayerEntity p, ItemStack stack) {
+        if (!ready(p, stack, "heavens_judgment", 600)) { // 30s
+            p.sendMessage(net.minecraft.text.Text.literal("✦ Heaven's Judgment is recharging.").formatted(net.minecraft.util.Formatting.YELLOW), true);
+            return;
+        }
+        final Vec3d center = p.getPos();
+        sound(w, center, SoundEvents.BLOCK_BEACON_ACTIVATE, 1.2f, 1.5f);
+
+        // --- charge: sigil draws, electricity climbs the caster (0–0.7s) ---
+        ServerScheduler.runTimer(1, 2, 7, new Runnable() {
+            int t = 0;
+            @Override
+            public void run() {
+                t++;
+                sigilRing(w, center, 3.0 + t * 0.2, t);
+                sigilRing(w, center, 5.5 - t * 0.1, -t);
+                particle(w, ParticleTypes.ELECTRIC_SPARK, p.getPos().add(0, 1, 0), 10, 0.4, 0.25);
+                particle(w, dust(C_JUDGE, 1.4f), p.getPos().add(0, 1.2, 0), 6, 0.3, 0.05);
+                sound(w, center, SoundEvents.BLOCK_NOTE_BLOCK_CHIME.value(), 0.6f, 0.6f + t * 0.12f);
+            }
+        });
+
+        // --- storm cloud gathers overhead (0.7s) ---
+        ServerScheduler.runLater(14, () -> {
+            Vec3d cloud = center.add(0, 14, 0);
+            particle(w, ParticleTypes.LARGE_SMOKE, cloud, 80, 5, 0.02);
+            particle(w, ParticleTypes.ELECTRIC_SPARK, cloud, 60, 5, 0.15);
+            sound(w, center, SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, 0.7f, 1.3f);
+        });
+
+        // --- mark enemies, then staggered lightning judgment (readable, one by one) ---
+        ServerScheduler.runLater(18, () -> {
+            if (!p.isAlive()) return;
+            java.util.List<LivingEntity> targets = new ArrayList<>();
+            for (Entity e : living(w, p, around(center, 16))) {
+                if (e instanceof LivingEntity le) {
+                    targets.add(le);
+                    sigilRing(w, le.getPos(), 1.0, 0); // stamp a sigil under each
+                }
+            }
+            for (int i = 0; i < targets.size(); i++) {
+                LivingEntity le = targets.get(i);
+                ServerScheduler.runLater(8 + i * 5, () -> {
+                    if (!le.isAlive()) return;
+                    strikeLightning(w, le.getPos());
+                    hurt(w, p, le, 6f);
+                    particle(w, ParticleTypes.ELECTRIC_SPARK, le.getPos().add(0, 0.3, 0), 40, 1.6, 0.2);
+                    impact(w, le.getPos().add(0, 1, 0), C_JUDGE, SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT);
+                });
+            }
+            int finale = 12 + targets.size() * 5;
+            ServerScheduler.runLater(finale, () -> centralJudgment(w, p, center));
+        });
+    }
+
+    /** The finale: one massive central bolt + branching ground arcs + AOE. */
+    private static void centralJudgment(ServerWorld w, ServerPlayerEntity p, Vec3d center) {
+        sound(w, center, SoundEvents.ENTITY_LIGHTNING_BOLT_THUNDER, 1.5f, 0.7f);
+        for (int k = 0; k < 4; k++) {
+            double a = k * Math.PI / 2;
+            strikeLightning(w, center.add(Math.cos(a) * 0.8, 0, Math.sin(a) * 0.8));
+        }
+        strikeLightning(w, center);
+        particle(w, ParticleTypes.FLASH, center.add(0, 1, 0), 3, 0.2, 0);
+        particle(w, ParticleTypes.EXPLOSION_EMITTER, center, 2, 0.4, 0);
+        // branching ground arcs racing outward
+        for (int i = 0; i < 20; i++) {
+            double a = Math.PI * 2 * i / 20;
+            for (double r = 1; r < 9; r += 0.6) {
+                Vec3d pt = center.add(Math.cos(a) * r, 0.25, Math.sin(a) * r);
+                particle(w, ParticleTypes.ELECTRIC_SPARK, pt, 1, 0.05, 0.02);
+            }
+        }
+        for (Entity e : living(w, p, around(center, 7))) {
+            if (e instanceof LivingEntity le) {
+                hurt(w, p, le, 12f);
+                le.takeKnockback(1.2, center.x - le.getX(), center.z - le.getZ());
+                impact(w, le.getPos().add(0, 1, 0), C_JUDGE, SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT);
+            }
+        }
+        // lingering aftershock sparks
+        ServerScheduler.runTimer(6, 6, 6, () ->
+                particle(w, ParticleTypes.ELECTRIC_SPARK, center.add(0, 0.4, 0), 20, 6, 0.05));
+    }
+
+    /** A flat particle sigil ring on the ground. */
+    private static void sigilRing(ServerWorld w, Vec3d center, double radius, double spin) {
+        int pts = Math.max(12, (int) (radius * 10));
+        for (int i = 0; i < pts; i++) {
+            double a = Math.PI * 2 * i / pts + spin * 0.3;
+            Vec3d o = center.add(Math.cos(a) * radius, 0.15, Math.sin(a) * radius);
+            particle(w, dust(C_JUDGE, 1.1f), o, 1, 0.0, 0.0);
+            if (i % 4 == 0) {
+                particle(w, ParticleTypes.ELECTRIC_SPARK, o, 1, 0.02, 0.0);
+            }
+        }
+    }
+
     private static void beamParticles(ServerWorld w, Vec3d from, Vec3d to, int rgb, ParticleEffect spark) {
         Vec3d diff = to.subtract(from);
         double len = diff.length();

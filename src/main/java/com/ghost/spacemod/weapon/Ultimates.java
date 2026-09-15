@@ -22,6 +22,7 @@ public final class Ultimates {
         }
         switch (weapon.weaponId()) {
             case "cryo_lance" -> WeaponAbilities.absoluteZero(w, p, held);
+            case "arc_carbine" -> WeaponAbilities.heavensJudgment(w, p, held);
             default -> p.sendMessage(Text.literal("✦ Ultimate for this weapon is coming soon.").formatted(Formatting.GRAY), true);
         }
     }
