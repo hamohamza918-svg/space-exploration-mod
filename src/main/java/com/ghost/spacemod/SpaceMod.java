@@ -31,6 +31,9 @@ public class SpaceMod implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(com.ghost.spacemod.net.CryoCastPayload.ID,
                 com.ghost.spacemod.net.CryoCastPayload.CODEC);
 
+        PayloadTypeRegistry.playS2C().register(com.ghost.spacemod.net.CryoSpikesPayload.ID,
+                com.ghost.spacemod.net.CryoSpikesPayload.CODEC);
+
         // Ultimate keybind networking (client sends, server executes)
         PayloadTypeRegistry.playC2S().register(UltimatePayload.ID, UltimatePayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(UltimatePayload.ID, (payload, context) -> {
