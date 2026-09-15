@@ -1025,12 +1025,13 @@ public final class WeaponAbilities {
                 double ang = Math.PI * 2 * ci / clusters;
                 int x = (int) Math.round(cx + Math.cos(ang) * borderR);
                 int z = (int) Math.round(cz + Math.sin(ang) * borderR);
-                if (!wallClear(w, cx, cy, cz, x, z)) return;
-                int sy = surfaceY(w, x, z, cy);
-                if (sy == Integer.MIN_VALUE) return;
+                // crystal spikes are rendered client-side (CryoCastEffects); here just the sweep sound + base frost
                 sound(w, center, SoundEvents.BLOCK_GLASS_BREAK, 1.2f, 0.7f);
                 sound(w, center, SoundEvents.BLOCK_AMETHYST_BLOCK_CHIME, 0.9f, 0.6f);
-                crystalCluster(w, st, x, sy, z, 5); // big
+                double ea = Math.PI * 2 * ci / clusters;
+                Vec3d ep = center.add(Math.cos(ea) * borderR, 0.3, Math.sin(ea) * borderR);
+                particle(w, ParticleTypes.ITEM_SNOWBALL, ep, 20, 0.4, 0.25);
+                particle(w, ParticleTypes.END_ROD, ep.add(0, 1.5, 0), 8, 0.3, 0.03);
             });
         }
         // damage + freeze everyone caught, once, as the crown erupts

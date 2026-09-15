@@ -18,6 +18,7 @@ import java.util.List;
 /** Bounded, local GPU effects for the Cryo Lance casts + camera shake. */
 public final class CryoCastEffects {
     private static final Identifier RUNE = Identifier.of("spacemod", "textures/effect/cryo_rune.png");
+    private static final Identifier CRYSTAL = Identifier.of("spacemod", "textures/effect/crystal.png");
     private static final List<CryoCastPayload> ACTIVE = new ArrayList<>();
 
     private static float shake = 0f;
@@ -88,8 +89,53 @@ public final class CryoCastEffects {
             discPair(matrices, vertices, 0.065f, radius, age, fade);
             // mirrored circle overhead (raised higher)
             discPair(matrices, vertices, 3.6f, radius, age, fade * 0.85f);
+
+            // crown of tapered crystal spikes around the circle border (ultimate only)
+            if (ultimate && age >= 22) {
+                VertexConsumer cv = context.consumers().getBuffer(RenderLayer.getEntityTranslucentEmissive(CRYSTAL));
+                crystalCrown(cv, matrices.peek().getPositionMatrix(), age, fade);
+            }
             matrices.pop();
         }
+    }
+
+    /** A ring of packed, tapered crystal-spike clusters around the circle's border. */
+    private static void crystalCrown(VertexConsumer v, Matrix4f m, float age, float fade) {
+        float R = 12f;
+        int clusters = 14;
+        for (int c = 0; c < clusters; c++) {
+            float start = 22 + c;                 // sweep around the crown
+            if (age < start) continue;
+            float grow = Math.min(1f, (age - start) / 8f);
+            double a = Math.PI * 2 * c / clusters;
+            float bx = (float) (Math.cos(a) * R), bz = (float) (Math.sin(a) * R);
+            for (int i = 0; i < 7; i++) {         // packed spikes per cluster
+                float ox = bx + (float) Math.cos(a + i * 1.7) * (0.25f + 0.28f * (i % 3));
+                float oz = bz + (float) Math.sin(a + i * 1.7) * (0.25f + 0.28f * (i % 3));
+                float h = (2.5f + ((c * 7 + i * 3) % 5)) * grow;   // varied 2.5–6.5 tall
+                float hw = 0.30f + 0.07f * (i % 3);
+                pyramid(v, m, ox, oz, hw, h, (int) (fade * 190));
+            }
+        }
+    }
+
+    /** A tapered 4-sided crystal spike (square base → sharp apex), faceted via per-face shade. */
+    private static void pyramid(VertexConsumer v, Matrix4f m, float ox, float oz, float hw, float h, int alpha) {
+        float[][] base = {{ox - hw, oz - hw}, {ox + hw, oz - hw}, {ox + hw, oz + hw}, {ox - hw, oz + hw}};
+        int[] shade = {240, 205, 170, 215};      // each face a slightly different brightness
+        for (int f = 0; f < 4; f++) {
+            float[] b1 = base[f], b2 = base[(f + 1) % 4];
+            int s = shade[f];
+            cvert(v, m, b1[0], 0, b1[1], s, 1f, alpha);
+            cvert(v, m, b2[0], 0, b2[1], s, 1f, alpha);
+            cvert(v, m, ox, h, oz, Math.min(255, s + 15), 0f, alpha);
+            cvert(v, m, ox, h, oz, Math.min(255, s + 15), 0f, alpha);
+        }
+    }
+
+    private static void cvert(VertexConsumer v, Matrix4f m, float x, float y, float z, int shade, float tv, int alpha) {
+        v.vertex(m, x, y, z).color((int) (shade * 0.68f), (int) (shade * 0.9f), 255, alpha).texture(0.5f, tv)
+                .overlay(OverlayTexture.DEFAULT_UV).light(LightmapTextureManager.MAX_LIGHT_COORDINATE).normal(0, 1, 0);
     }
 
     private static void discPair(net.minecraft.client.util.math.MatrixStack matrices, VertexConsumer v,
