@@ -1,6 +1,9 @@
 {
   "model": {
-    "type": "minecraft:model",
-    "model": "spacemod:item/arc_carbine"
+    "type": "minecraft:special",
+    "base": "spacemod:item/arc_carbine",
+    "model": {
+      "type": "geckolib:geckolib"
+    }
   }
 }

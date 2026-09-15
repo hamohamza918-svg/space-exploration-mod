@@ -34,7 +34,7 @@ public final class CryoCastEffects {
                 context.client().execute(() -> {
                     var world = context.client().world;
                     if (world == null || !world.getRegistryKey().getValue().equals(packet.dimension())) return;
-                    if (!List.of("stream", "nova", "absolute_zero", "shatter").contains(packet.animation())) return;
+                    if (!List.of("stream", "nova", "absolute_zero", "shatter", "heavens_judgment").contains(packet.animation())) return;
                     if (packet.duration() < 1 || packet.duration() > 240) return;
                     if (!Double.isFinite(packet.x()) || !Double.isFinite(packet.y()) || !Double.isFinite(packet.z())) return;
                     ACTIVE.removeIf(old -> old.caster() == packet.caster() &&
@@ -77,6 +77,7 @@ public final class CryoCastEffects {
             if (age < 0 || age > p.duration() || camera.squaredDistanceTo(p.x(), p.y(), p.z()) > 80 * 80) continue;
             boolean ultimate = p.animation().equals("absolute_zero");
             boolean shatter = p.animation().equals("shatter");
+            boolean storm = p.animation().equals("heavens_judgment");
             float fade = Math.min(1, age / 4) * Math.min(1, (p.duration() - age) / 8);
             float radius = ultimate ? 12 * Math.min(1, age / 13) : shatter ? 12 * (1 - age / p.duration()) :
                     p.animation().equals("nova") ? 1 + Math.min(6, age / 3) : 1.3f;
@@ -85,6 +86,14 @@ public final class CryoCastEffects {
             matrices.push();
             matrices.translate(p.x() - camera.x, p.y() - camera.y, p.z() - camera.z);
             VertexConsumer vertices = context.consumers().getBuffer(RenderLayer.getEntityTranslucentEmissive(RUNE));
+            if (storm) {
+                // Heaven's Judgment: 4 circles — blue + yellow counter-rotating, below AND above
+                float sr = 5.5f;
+                stormCircle(matrices, vertices, 0.065f, sr, age, fade);
+                stormCircle(matrices, vertices, 3.9f, sr, age, fade * 0.9f);
+                matrices.pop();
+                continue;
+            }
             // circle under the caster (+ orbiting satellite sub-circles)
             discPair(matrices, vertices, 0.065f, radius, age, fade);
             satellites(matrices, vertices, radius, 0.07f, age, fade);
@@ -192,12 +201,31 @@ public final class CryoCastEffects {
     }
 
     private static void disc(VertexConsumer v, Matrix4f m, float r, int alpha) {
-        flat(v, m, -r, -r, 0, 0, alpha); flat(v, m, -r, r, 0, 1, alpha);
-        flat(v, m, r, r, 1, 1, alpha); flat(v, m, r, -r, 1, 0, alpha);
+        discColored(v, m, r, alpha, 125, 230, 255);
     }
 
-    private static void flat(VertexConsumer v, Matrix4f m, float x, float z, float u, float t, int alpha) {
-        v.vertex(m, x, 0, z).color(125, 230, 255, alpha).texture(u, t)
+    private static void discColored(VertexConsumer v, Matrix4f m, float r, int alpha, int cr, int cg, int cb) {
+        flat(v, m, -r, -r, 0, 0, alpha, cr, cg, cb); flat(v, m, -r, r, 0, 1, alpha, cr, cg, cb);
+        flat(v, m, r, r, 1, 1, alpha, cr, cg, cb); flat(v, m, r, -r, 1, 0, alpha, cr, cg, cb);
+    }
+
+    private static void flat(VertexConsumer v, Matrix4f m, float x, float z, float u, float t, int alpha,
+                             int cr, int cg, int cb) {
+        v.vertex(m, x, 0, z).color(cr, cg, cb, alpha).texture(u, t)
                 .overlay(OverlayTexture.DEFAULT_UV).light(LightmapTextureManager.MAX_LIGHT_COORDINATE).normal(0, 1, 0);
+    }
+
+    /** Blue + yellow counter-rotating rune discs (Heaven's Judgment). */
+    private static void stormCircle(net.minecraft.client.util.math.MatrixStack matrices, VertexConsumer v,
+                                    float yOff, float radius, float age, float fade) {
+        matrices.push();
+        matrices.translate(0, yOff, 0);
+        // blue outer, spinning one way
+        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(age * 1.5f));
+        discColored(v, matrices.peek().getPositionMatrix(), radius, (int) (fade * 200), 90, 150, 255);
+        // yellow inner, spinning the other way
+        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-age * 4.0f));
+        discColored(v, matrices.peek().getPositionMatrix(), radius * 0.72f, (int) (fade * 220), 255, 225, 90);
+        matrices.pop();
     }
 }

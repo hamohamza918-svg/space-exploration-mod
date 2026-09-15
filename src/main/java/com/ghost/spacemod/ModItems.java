@@ -63,8 +63,11 @@ public final class ModItems {
         Identifier id = Identifier.of(SpaceMod.MOD_ID, name);
         RegistryKey<Item> key = RegistryKey.of(RegistryKeys.ITEM, id);
         Item.Settings settings = new Item.Settings().maxCount(1).registryKey(key);
-        Item item = weaponId.equals("cryo_lance")
-                ? new com.ghost.spacemod.weapon.CryoLanceItem(settings) : new WeaponItem(settings, weaponId);
+        Item item = switch (weaponId) {
+            case "cryo_lance" -> new com.ghost.spacemod.weapon.CryoLanceItem(settings);
+            case "arc_carbine" -> new com.ghost.spacemod.weapon.ArcCarbineItem(settings);
+            default -> new WeaponItem(settings, weaponId);
+        };
         Registry.register(Registries.ITEM, key, item);
         ITEMS.add(item);
         return item;

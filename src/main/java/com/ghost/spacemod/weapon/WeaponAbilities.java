@@ -287,6 +287,7 @@ public final class WeaponAbilities {
         }
         final Vec3d center = p.getPos();
         sound(w, center, SoundEvents.BLOCK_BEACON_ACTIVATE, 1.2f, 1.5f);
+        ArcCarbineItem.cast(w, p, stack, "ultimate", "heavens_judgment", center, 60); // model anim + storm circle
 
         // --- charge: sigil draws, electricity climbs the caster (0–0.7s) ---
         ServerScheduler.runTimer(1, 2, 7, new Runnable() {
