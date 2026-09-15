@@ -119,17 +119,25 @@ public final class CryoCastEffects {
         }
     }
 
-    /** A tapered 4-sided crystal spike (square base → sharp apex), faceted via per-face shade. */
+    /** A tapered 4-sided crystal spike (square base → sharp apex), faceted via per-face shade.
+     *  Each face is emitted with both windings so it's visible from any angle (no backface culling). */
     private static void pyramid(VertexConsumer v, Matrix4f m, float ox, float oz, float hw, float h, int alpha) {
         float[][] base = {{ox - hw, oz - hw}, {ox + hw, oz - hw}, {ox + hw, oz + hw}, {ox - hw, oz + hw}};
         int[] shade = {240, 205, 170, 215};      // each face a slightly different brightness
         for (int f = 0; f < 4; f++) {
             float[] b1 = base[f], b2 = base[(f + 1) % 4];
             int s = shade[f];
+            int st = Math.min(255, s + 15);
+            // front winding
             cvert(v, m, b1[0], 0, b1[1], s, 1f, alpha);
             cvert(v, m, b2[0], 0, b2[1], s, 1f, alpha);
-            cvert(v, m, ox, h, oz, Math.min(255, s + 15), 0f, alpha);
-            cvert(v, m, ox, h, oz, Math.min(255, s + 15), 0f, alpha);
+            cvert(v, m, ox, h, oz, st, 0f, alpha);
+            cvert(v, m, ox, h, oz, st, 0f, alpha);
+            // back winding (so the face shows from the other side too)
+            cvert(v, m, ox, h, oz, st, 0f, alpha);
+            cvert(v, m, ox, h, oz, st, 0f, alpha);
+            cvert(v, m, b2[0], 0, b2[1], s, 1f, alpha);
+            cvert(v, m, b1[0], 0, b1[1], s, 1f, alpha);
         }
     }
 
