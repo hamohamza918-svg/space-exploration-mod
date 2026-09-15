@@ -86,14 +86,46 @@ public final class WeaponAbilities {
     }
 
     public static void onHit(ServerWorld w, ServerPlayerEntity p, String id, LivingEntity target) {
-        // Melee left-click keeps a light on-theme touch; the spec's depth is in the abilities.
+        // Every weapon's melee hit gets a punchy, themed impact + feedback.
         Vec3d at = target.getPos().add(0, target.getHeight() * 0.6, 0);
         DamageSource src = w.getDamageSources().playerAttack(p);
         switch (id) {
+            case "xylite_blade" -> {
+                target.damage(w, src, 2f);
+                impact(w, at, C_XYLITE, SoundEvents.ENTITY_PLAYER_ATTACK_CRIT);
+                particle(w, dust(C_XYLITE, 1.4f), at, 14, 0.5, 0.1);
+            }
+            case "arc_carbine" -> {
+                impact(w, at, C_ARC, SoundEvents.ENTITY_LIGHTNING_BOLT_IMPACT);
+                particle(w, ParticleTypes.ELECTRIC_SPARK, at, 24, 0.5, 0.25);
+                knock(p, target, 0.6);
+            }
             case "cryo_lance" -> { applyFrostHit(w, target, 1); impact(w, at, C_CRYO, SoundEvents.BLOCK_GLASS_BREAK); }
-            case "helios_glaive" -> { target.setOnFireFor(3f); impact(w, at, C_HELIOS, SoundEvents.ITEM_FIRECHARGE_USE); }
-            case "resonance_hammer" -> { knock(p, target, 1.4); impact(w, at, C_HAMMER, SoundEvents.ENTITY_GENERIC_EXPLODE.value()); }
-            case "corrosion_sprayer" -> addCorrosion(target, 1);
+            case "resonance_hammer" -> {
+                knock(p, target, 1.7);
+                impact(w, at, C_HAMMER, SoundEvents.ENTITY_GENERIC_EXPLODE.value());
+                sound(w, at, SoundEvents.ITEM_MACE_SMASH_GROUND_HEAVY, 1.0f, 1.1f);
+            }
+            case "helios_glaive" -> {
+                target.setOnFireFor(4f);
+                impact(w, at, C_HELIOS, SoundEvents.ITEM_FIRECHARGE_USE);
+                particle(w, ParticleTypes.FLAME, at, 20, 0.4, 0.1);
+            }
+            case "borer_drill" -> {
+                impact(w, at, C_DRILL, SoundEvents.BLOCK_ANVIL_LAND);
+                particle(w, ParticleTypes.CRIT, at, 24, 0.5, 0.4);
+                sound(w, at, SoundEvents.BLOCK_GRINDSTONE_USE, 0.8f, 1.4f);
+            }
+            case "corrosion_sprayer" -> {
+                addCorrosion(target, 1);
+                target.addStatusEffect(new StatusEffectInstance(StatusEffects.POISON, 60, 0, true, false, false));
+                impact(w, at, C_ACID, SoundEvents.ENTITY_SPIDER_HURT);
+                particle(w, ParticleTypes.SNEEZE, at, 12, 0.4, 0.05);
+            }
+            case "laser_cutter" -> {
+                impact(w, at, C_LASER, SoundEvents.ITEM_FIRECHARGE_USE);
+                particle(w, ParticleTypes.END_ROD, at, 16, 0.4, 0.2);
+            }
             default -> { }
         }
     }

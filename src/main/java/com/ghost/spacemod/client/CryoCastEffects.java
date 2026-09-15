@@ -85,21 +85,54 @@ public final class CryoCastEffects {
             matrices.push();
             matrices.translate(p.x() - camera.x, p.y() - camera.y, p.z() - camera.z);
             VertexConsumer vertices = context.consumers().getBuffer(RenderLayer.getEntityTranslucentEmissive(RUNE));
-            // circle under the caster
+            // circle under the caster (+ orbiting satellite sub-circles)
             discPair(matrices, vertices, 0.065f, radius, age, fade);
+            satellites(matrices, vertices, radius, 0.07f, age, fade);
             // mirrored circle overhead (raised higher)
             discPair(matrices, vertices, 3.6f, radius, age, fade * 0.85f);
+            satellites(matrices, vertices, radius, 3.62f, age, fade * 0.85f);
 
-            // crown of tapered crystal spikes around the circle border (ultimate only)
+            VertexConsumer cv = context.consumers().getBuffer(RenderLayer.getEntityTranslucentEmissive(CRYSTAL));
+            // crown of tapered crystal spikes around the border (ultimate only)
             if (ultimate && age >= 22) {
-                VertexConsumer cv = context.consumers().getBuffer(RenderLayer.getEntityTranslucentEmissive(CRYSTAL));
                 crystalCrown(cv, matrices.peek().getPositionMatrix(), age, fade);
+            }
+            // Glacial Rupture: expanding ring of small ice crystals
+            if (p.animation().equals("nova")) {
+                novaCrystals(cv, matrices.peek().getPositionMatrix(), radius, age, fade);
             }
             matrices.pop();
         }
     }
 
-    /** A ring of packed, tapered crystal-spike clusters around the circle's border. */
+    /** Small counter-rotating rune sub-circles orbiting the main circle (ornate look). */
+    private static void satellites(net.minecraft.client.util.math.MatrixStack matrices, VertexConsumer v,
+                                   float radius, float yOff, float age, float fade) {
+        int n = 4;
+        for (int i = 0; i < n; i++) {
+            double orbit = Math.toRadians(age * 1.1) + i * (Math.PI * 2 / n);
+            float ox = (float) (Math.cos(orbit) * radius * 0.86);
+            float oz = (float) (Math.sin(orbit) * radius * 0.86);
+            matrices.push();
+            matrices.translate(ox, yOff, oz);
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-age * 6));
+            disc(v, matrices.peek().getPositionMatrix(), radius * 0.17f, (int) (fade * 205));
+            matrices.pop();
+        }
+    }
+
+    /** Expanding ring of small ice crystals for Glacial Rupture. */
+    private static void novaCrystals(VertexConsumer v, Matrix4f m, float radius, float age, float fade) {
+        int count = 22;
+        for (int i = 0; i < count; i++) {
+            double a = Math.PI * 2 * i / count;
+            float ox = (float) (Math.cos(a) * radius);
+            float oz = (float) (Math.sin(a) * radius);
+            pyramid(v, m, ox, oz, 0.22f, 1.3f, (int) (fade * 185));
+        }
+    }
+
+    /** A ring of packed, tapered crystal-spike clusters around the circle's border (shimmering). */
     private static void crystalCrown(VertexConsumer v, Matrix4f m, float age, float fade) {
         float R = 12f;
         int clusters = 14;
@@ -107,14 +140,15 @@ public final class CryoCastEffects {
             float start = 22 + c;                 // sweep around the crown
             if (age < start) continue;
             float grow = Math.min(1f, (age - start) / 8f);
-            double a = Math.PI * 2 * c / clusters;
+            double a = Math.PI * 2 * c / clusters + Math.toRadians(age * 0.6); // slow rotation
             float bx = (float) (Math.cos(a) * R), bz = (float) (Math.sin(a) * R);
+            float shimmer = 0.82f + 0.18f * (float) Math.sin(age * 0.25 + c);  // subtle pulse
             for (int i = 0; i < 7; i++) {         // packed spikes per cluster
                 float ox = bx + (float) Math.cos(a + i * 1.7) * (0.25f + 0.28f * (i % 3));
                 float oz = bz + (float) Math.sin(a + i * 1.7) * (0.25f + 0.28f * (i % 3));
                 float h = (2.5f + ((c * 7 + i * 3) % 5)) * grow;   // varied 2.5–6.5 tall
                 float hw = 0.30f + 0.07f * (i % 3);
-                pyramid(v, m, ox, oz, hw, h, (int) (fade * 190));
+                pyramid(v, m, ox, oz, hw, h, (int) (fade * 190 * shimmer));
             }
         }
     }
